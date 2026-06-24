@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>林材木店 売れ行き＆在庫ボード</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%237a5c3e'/><text x='50' y='54' font-size='60' text-anchor='middle' dominant-baseline='central' fill='%23ffffff' font-family='sans-serif' font-weight='bold'>林</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%237a5c3e'/><text x='50' y='54' font-size='60' text-anchor='middle' dominant-baseline='central' fill='%23ffffff' font-family='sans-serif' font-weight='bold'>林</text></svg>">
+<meta name="theme-color" content="#7a5c3e">
+<meta name="apple-mobile-web-app-title" content="在庫ボード">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <style>
   :root{
     --bg:#f4f1ea; --card:#fffdf8; --ink:#2c2a26; --sub:#7a756c; --line:#e3ddd0;
@@ -47,6 +53,8 @@
   select,.search input{font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
   .tbtn{font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 13px;cursor:pointer;white-space:nowrap}
   .tbtn:hover{border-color:var(--accent);color:var(--accent)}
+  .tchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;white-space:nowrap}
+  .tchk input{margin:0;cursor:pointer;accent-color:var(--accent)}
   .search{position:relative}
   .search input{padding-left:30px;width:170px}
   .search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);opacity:.5}
@@ -220,6 +228,7 @@
     <option value="A">A級のみ</option>
     <option value="B">B級のみ</option>
   </select>
+  <label class="tchk"><input type="checkbox" id="hide105"> 105幅を隠す</label>
   <div class="search">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
     <input id="q" placeholder="規格を検索…">
@@ -311,18 +320,26 @@ let edits={};          // key 'gi|L|G' -> {stock?, price?}
 let SOURCE='';         // 'live' | 'sample'
 let MALLBASE={yahoo:'',rakuten:''};   // 商品ページURLのベース
 let COUNTSHEET=[];                     // 在庫チェック表の構造（ボード読込時に取得＝即印刷）
+const CACHE_KEY='hayazai_board_cache'; // 前回のボードデータ（開いた瞬間に即表示する用）
+let refreshTimer=null;                  // 定期裏更新タイマー
 const ckey=(gi,L,G)=>gi+'|'+L+'|'+G;
 
 // ログイン情報: 「保持する」=localStorage（次回も維持）/ しない=sessionStorage（タブ閉じで消える）
 function creds(){ try{ return JSON.parse(localStorage.getItem(CRED_KEY)||sessionStorage.getItem(CRED_KEY)||'{}'); }catch(e){ return {}; } }
 function authQS(){ const c=creds(); return 'email='+encodeURIComponent(c.email||'')+'&pass='+encodeURIComponent(c.pass||''); }
 function saveCreds(email,pass,keep){ const v=JSON.stringify({email,pass}); if(keep){ localStorage.setItem(CRED_KEY,v); sessionStorage.removeItem(CRED_KEY); } else { sessionStorage.setItem(CRED_KEY,v); localStorage.removeItem(CRED_KEY); } }
-function clearCreds(){ localStorage.removeItem(CRED_KEY); sessionStorage.removeItem(CRED_KEY); }
+function clearCreds(){ localStorage.removeItem(CRED_KEY); sessionStorage.removeItem(CRED_KEY); try{localStorage.removeItem(CACHE_KEY);}catch(e){} }
 
 /* ===== 起動 ===== */
 function boot(){
   const c=creds();
-  if(GAS_URL && c.email && c.pass){ document.getElementById('gate').style.display='none'; showLoading(); fetchLive(); }
+  if(GAS_URL && c.email && c.pass){
+    document.getElementById('gate').style.display='none';
+    const cache=loadCache();
+    if(cache){ applyData(cache,true); } else { showLoading(); }   // 前回データがあれば即表示（待ち時間ゼロ）
+    fetchLive({silent:!!cache});                                   // 裏で最新を取得して差し替え
+    startAutoRefresh();
+  }
   else if(GAS_URL){ showGate(); }
   else { useSample('（接続未設定）'); }
 }
@@ -349,28 +366,57 @@ function submitGate(){
   document.getElementById('gate').style.display='none';
   showLoading();
   fetchLive();
+  startAutoRefresh();
 }
 
-async function fetchLive(){
+async function fetchLive(opts){
+  opts=opts||{};
+  setRefreshing(true);
   try{
     const r=await fetch(GAS_URL+'?api=board&'+authQS(),{method:'GET'});
     const j=await r.json();
     if(!j.ok){
       if(j.error==='unauthorized'){ clearCreds(); showGate('メールまたはパスワードが違います'); }
-      else gridError('エラー: '+(j.error||'不明'));
+      else if(SOURCE!=='live') gridError('エラー: '+(j.error||'不明'));   // 既に表示中なら据え置き
       return;
     }
-    DATA=normalizeGroups(j.groups);
-    SOURCE='live';
-    MALLBASE.yahoo=j.yahooBase||''; MALLBASE.rakuten=j.rakutenBase||'';
-    COUNTSHEET=j.countsheet||[];
-    document.getElementById('gate').style.display='none';
-    document.getElementById('demoBan').style.display='none';
-    const b=document.getElementById('srcBadge'); b.className='src-badge live'; b.textContent='● ライブ（実在庫）';
-    document.getElementById('subline').textContent='更新 '+j.updated+'　履歴最古 '+(j.horizon||'—');
-    render();
-  }catch(e){ gridError('読み込みに失敗しました（ネット／一時的なGoogle応答）'); }
+    applyData(j,false);
+    saveCache(j);
+  }catch(e){
+    // 既に前回データを表示中なら、裏更新の失敗は無視して表示を維持
+    if(SOURCE!=='live') gridError('読み込みに失敗しました（ネット／一時的なGoogle応答）');
+  }finally{ setRefreshing(false); }
 }
+// 取得データ（実通信 or キャッシュ）を画面へ反映
+function applyData(j,fromCache){
+  DATA=normalizeGroups(j.groups);
+  MALLBASE.yahoo=j.yahooBase||''; MALLBASE.rakuten=j.rakutenBase||'';
+  COUNTSHEET=j.countsheet||[];
+  SOURCE='live';
+  document.getElementById('gate').style.display='none';
+  document.getElementById('demoBan').style.display='none';
+  document.getElementById('subline').textContent='更新 '+(j.updated||'—')+'　履歴最古 '+(j.horizon||'—');
+  render();
+}
+// バッジ表示（表示データがある時だけ「更新中…/ライブ」を出す）
+function setRefreshing(on){
+  if(SOURCE!=='live') return;
+  const b=document.getElementById('srcBadge'); b.className='src-badge live';
+  b.textContent= on ? '● 更新中…' : '● ライブ（実在庫）';
+}
+// 裏更新してよいか（編集保留中・詳細を開いている間は避ける）
+function canBackgroundRefresh(){
+  return SOURCE==='live' && Object.keys(edits).length===0 && !document.getElementById('drawer').classList.contains('show');
+}
+function startAutoRefresh(){
+  if(refreshTimer) clearInterval(refreshTimer);
+  refreshTimer=setInterval(()=>{ if(document.visibilityState==='visible' && canBackgroundRefresh()) fetchLive({silent:true}); }, 180000); // 3分ごと
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && canBackgroundRefresh()) fetchLive({silent:true}); });
+function saveCache(j){
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon})); }catch(e){}
+}
+function loadCache(){ try{ const s=localStorage.getItem(CACHE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function gridError(msg){
   const b=document.getElementById('srcBadge'); b.className='src-badge err'; b.textContent='● エラー';
   document.getElementById('grid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:56px 0">'+msg
@@ -406,9 +452,10 @@ function render(){
   const sort=document.getElementById('sortSel').value;
   const qf=document.getElementById('qSel').value;
   const kw=document.getElementById('q').value.trim();
+  const hide105=document.getElementById('hide105').checked;
   document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':''));
 
-  let groups=DATA.filter(g=>(!qf||g.quality===qf)&&(!kw||g.name.includes(kw)));
+  let groups=DATA.filter(g=>(!qf||g.quality===qf)&&(!kw||g.name.includes(kw))&&!(hide105&&g.width==='105mm幅'));
   groups=groups.slice().sort((a,b)=>{
     if(sort==='stock') return b.stockSum-a.stockSum;
     if(sort==='name')  return a.name.localeCompare(b.name,'ja');
@@ -557,6 +604,8 @@ async function applyEdits(){
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();});
 ['sortSel','qSel'].forEach(id=>document.getElementById(id).onchange=render);
 document.getElementById('q').oninput=render;
+// 105幅を隠す（状態は端末に保持）
+(function(){ const el=document.getElementById('hide105'); el.checked=localStorage.getItem('hayazai_hide105')==='1'; el.onchange=()=>{ try{localStorage.setItem('hayazai_hide105',el.checked?'1':'0');}catch(e){} render(); }; })();
 
 /* ===== 在庫チェック表（棚卸し記入用紙）を印刷 ===== */
 document.getElementById('printBtn').onclick=printCountSheet;
