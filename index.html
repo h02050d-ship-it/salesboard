@@ -109,6 +109,9 @@
   .mall .md .d{font-size:15px;font-weight:800}
   .mall .md .s{font-size:10.5px;color:var(--sub);margin-top:2px}
   .mall.none{opacity:.5}
+  a.mall{text-decoration:none;color:inherit;cursor:pointer}
+  .mall.link:hover{border-color:var(--accent);background:rgba(122,92,62,.06)}
+  .mall .ext{font-size:11px;color:var(--accent);font-weight:700;margin-left:6px}
   .code{font-size:10px;color:var(--sub);font-family:ui-monospace,monospace;margin-top:3px}
 
   .edit{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:13px;background:var(--bg)}
@@ -222,6 +225,7 @@
     <input id="q" placeholder="規格を検索…">
   </div>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
+  <button id="mmBtn" class="tbtn" title="Yahoo出品あり・楽天出品なしの規格を一覧印刷">🛒 楽天未掲載</button>
   <div class="spacer"></div>
   <div class="legend">
     <span><i style="background:var(--g)"></i>〜2か月</span>
@@ -305,6 +309,7 @@ const SAMPLE=[
 let DATA=[];           // 正規化済み
 let edits={};          // key 'gi|L|G' -> {stock?, price?}
 let SOURCE='';         // 'live' | 'sample'
+let MALLBASE={yahoo:'',rakuten:''};   // 商品ページURLのベース
 const ckey=(gi,L,G)=>gi+'|'+L+'|'+G;
 
 // ログイン情報: 「保持する」=localStorage（次回も維持）/ しない=sessionStorage（タブ閉じで消える）
@@ -356,6 +361,7 @@ async function fetchLive(){
     }
     DATA=normalizeGroups(j.groups);
     SOURCE='live';
+    MALLBASE.yahoo=j.yahooBase||''; MALLBASE.rakuten=j.rakutenBase||'';
     document.getElementById('gate').style.display='none';
     document.getElementById('demoBan').style.display='none';
     const b=document.getElementById('srcBadge'); b.className='src-badge live'; b.textContent='● ライブ（実在庫）';
@@ -463,9 +469,17 @@ function openDrawer(gi,key){
   document.getElementById('dGrp').textContent=g.name;
   document.getElementById('dTtl').textContent=c.length+'mm（'+BUNDLE[c.length]+'枚束） ／ '+c.grade;
   const s=curStock(gi,c), p=curPrice(gi,c), bk=bucket(c.combined);
-  const mallHTML=(label,cls,m)=> m ?
-    '<div class="mall"><div class="ml"><span class="dot '+cls+'"></span>'+label+'</div><div class="md"><div class="d">'+(m.days===null?'不明':m.days+'日')+'</div><div class="s">'+(m.date?'最終 '+m.date:'履歴なし')+'</div>'+(m.code?'<div class="code">'+m.code+'</div>':'')+'</div></div>'
-    : '<div class="mall none"><div class="ml"><span class="dot '+cls+'"></span>'+label+'</div><div class="md"><div class="s">出品なし</div></div></div>';
+  const mallHTML=(label,cls,m,plat)=>{
+    if(!m) return '<div class="mall none"><div class="ml"><span class="dot '+cls+'"></span>'+label+'</div><div class="md"><div class="s">出品なし</div></div></div>';
+    const base=MALLBASE[plat]||'';
+    const url=(base&&m.code)?(base+m.code+(plat==='yahoo'?'.html':'/')):'';
+    const big=(m.days===null?'—':m.days+'日');
+    const sub=(m.date?'最終 '+m.date:(m.days===null?'販売記録なし':''));
+    const inner='<div class="ml"><span class="dot '+cls+'"></span>'+label+(url?'<span class="ext">商品ページ ↗</span>':'')+'</div>'
+      +'<div class="md"><div class="d">'+big+'</div><div class="s">'+sub+'</div>'+(m.code?'<div class="code">'+m.code+'</div>':'')+'</div>';
+    return url ? '<a class="mall link" href="'+url+'" target="_blank" rel="noopener">'+inner+'</a>'
+              : '<div class="mall">'+inner+'</div>';
+  };
   const priceBlock = c.priceEditable ?
       '<div class="edit"><div class="et">💴 価格を編集（税込・円）'+(c.type==='スノコ板'?'<span style="color:var(--sub)">楽天</span>':'<span style="color:var(--sub)">Yahoo</span>')+'</div>'
     + '<div class="stepper price"><button onclick="bumpPrice(-100)">−</button><input id="prIn" type="number" inputmode="numeric" value="'+p+'"><button onclick="bumpPrice(100)">＋</button></div>'
@@ -473,7 +487,7 @@ function openDrawer(gi,key){
     : '<div class="edit"><div class="pr-lock">この規格は価格編集の対象外（楽天専用体系などのため）。現在: '+yen(c.price)+'</div></div>';
   document.getElementById('dBody').innerHTML=
     '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
-   + mallHTML('Yahoo!','yh',c.yahoo) + mallHTML('楽天','rk',c.rakuten)
+   + mallHTML('Yahoo!','yh',c.yahoo,'yahoo') + mallHTML('楽天','rk',c.rakuten,'rakuten')
    + '<div class="edit"><div class="et">📦 在庫を編集（束）</div>'
    + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="numeric" value="'+s+'"><button onclick="bumpStock(1)">＋</button></div>'
    + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）</div>'
@@ -544,6 +558,32 @@ document.getElementById('q').oninput=render;
 
 /* ===== 在庫チェック表（棚卸し記入用紙）を印刷 ===== */
 document.getElementById('printBtn').onclick=printCountSheet;
+document.getElementById('mmBtn').onclick=printMismatch;
+/* Yahoo出品あり・楽天出品なし の一覧を印刷（楽天掲載漏れチェック用） */
+function printMismatch(){
+  if(SOURCE!=='live'){ alert('ログインして実在庫に接続すると印刷できます。'); return; }
+  const rows=[];
+  DATA.forEach(g=>Object.values(g.cells).forEach(c=>{ if(c.yahoo && !c.rakuten) rows.push({name:g.name,length:c.length,grade:c.grade,stock:curStock(g.gi,c),ycode:c.yahoo.code}); }));
+  if(!rows.length){ alert('「Yahoo出品あり・楽天出品なし」の規格はありません 🎉'); return; }
+  rows.sort((a,b)=> a.name.localeCompare(b.name,'ja') || a.length-b.length);
+  const now=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const tr=rows.map(r=>'<tr><td>'+r.name+'</td><td class="c">'+r.length+'</td><td class="c">'+r.grade+'</td><td class="c">'+r.stock+'</td><td class="mono">'+r.ycode+'</td><td class="chk">□ 掲載済　□ 未掲載</td></tr>').join('');
+  const html='<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>楽天 未掲載チェック</title><style>'
+    +'@page{size:A4 portrait;margin:12mm}body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:#000;margin:0;padding:6px}'
+    +'h1{font-size:17px;margin:0 0 2px}.sub{font-size:11px;color:#444;margin:0 0 12px}'
+    +'table{width:100%;border-collapse:collapse;font-size:11px}th,td{border:1px solid #999;padding:5px 7px;text-align:left}'
+    +'th{background:#f3f3f3}td.c{text-align:center}td.mono{font-family:monospace;font-size:10px}td.chk{white-space:nowrap;color:#333}'
+    +'.note{font-size:10px;color:#555;margin-top:10px;line-height:1.6}.noprint{text-align:center;margin-top:16px}@media print{.noprint{display:none}}'
+    +'</style></head><body>'
+    +'<h1>楽天 未掲載チェック一覧</h1><p class="sub">Yahoo出品あり・楽天出品なし の規格（'+rows.length+'件）／印字 '+now+'</p>'
+    +'<table><thead><tr><th>規格</th><th>長さ</th><th>等級</th><th>在庫(束)</th><th>Yahooコード</th><th>楽天</th></tr></thead><tbody>'+tr+'</tbody></table>'
+    +'<p class="note">※「楽天出品なし」は<b>商品マッピングに該当楽天SKUが無い</b>規格です。実際は楽天に掲載済でもマッピング未取得だと出ることがあります（要確認）。掲載済なら商品取得を更新すると解消します。</p>'
+    +'<div class="noprint"><button onclick="window.print()" style="padding:10px 26px;font-size:14px;font-weight:bold;cursor:pointer;border-radius:8px;border:1px solid #333;background:#fff">🖨 印刷する</button></div>'
+    +'</body></html>';
+  const w=window.open('','_blank','width=900,height=720');
+  if(!w){ alert('ポップアップがブロックされました。許可してください。'); return; }
+  w.document.write(html); w.document.close(); w.focus(); setTimeout(()=>{ try{ w.print(); }catch(e){} },300);
+}
 function printCountSheet(){
   if(SOURCE!=='live'){ alert('サンプル表示中です。ログインして実在庫に接続すると印刷できます。'); return; }
   const w=window.open('','_blank','width=1000,height=720');
