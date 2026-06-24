@@ -53,6 +53,17 @@
   .legend i{display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:3px;vertical-align:-2px;border:1px solid rgba(0,0,0,.08)}
 
   .grid{max-width:1280px;margin:0 auto;padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;align-items:start}
+  .section{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 18px;border-radius:13px;box-shadow:var(--shadow);border:1px solid var(--line)}
+  .section .sec-l{display:flex;align-items:center;gap:12px}
+  .section .sec-q{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px}
+  .section .sec-t{font-size:17px;font-weight:800;letter-spacing:.02em}
+  .section .sec-kpi{font-size:12px;font-weight:700;color:var(--sub)}
+  .sec-b{background:linear-gradient(100deg,rgba(168,127,83,.20),rgba(168,127,83,.04));border-left:6px solid var(--accent2)}
+  .sec-b .sec-q{background:var(--accent2)}
+  .sec-a{background:linear-gradient(100deg,rgba(122,92,62,.20),rgba(122,92,62,.04));border-left:6px solid var(--accent)}
+  .sec-a .sec-q{background:var(--accent)}
+  .sec-a{margin-top:18px}   /* B級とA級の間をはっきり空ける */
+  .grid > .section:first-child{margin-top:2px}
   .gcard{background:var(--card);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);overflow:hidden}
   .gcard h2{font-size:13.5px;font-weight:800;padding:12px 15px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(122,92,62,.07),transparent)}
   .gcard h2 .q{font-size:10px;font-weight:800;color:#fff;background:var(--accent);padding:2px 7px;border-radius:6px}
@@ -375,10 +386,24 @@ function render(){
   document.getElementById('kStale').textContent=stale;
   document.getElementById('kStock').textContent=stk.toLocaleString();
 
+  // B級を上・A級を下にセクション分け（区分けを明確化）
+  const bG=groups.filter(g=>g.quality==='B');
+  const aG=groups.filter(g=>g.quality==='A');
+  let html='';
+  if(bG.length) html+=sectionBanner('B',bG)+bG.map(g=>cardHTML(g,mode)).join('');
+  if(aG.length) html+=sectionBanner('A',aG)+aG.map(g=>cardHTML(g,mode)).join('');
+  if(!html) html='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:60px">該当なし</div>';
   const grid=document.getElementById('grid');
-  grid.innerHTML=groups.map(g=>cardHTML(g,mode)).join('')||'<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:60px">該当なし</div>';
+  grid.innerHTML=html;
   grid.querySelectorAll('.cell:not(.empty)').forEach(el=>el.onclick=()=>openDrawer(+el.dataset.gi,el.dataset.k));
   updateSaveBar();
+}
+function sectionBanner(q,groups){
+  let cards=0,stk=0;
+  groups.forEach(g=>Object.values(g.cells).forEach(c=>{cards++;stk+=(+curStock(g.gi,c)||0);}));
+  return '<div class="section sec-'+q.toLowerCase()+'">'
+    + '<div class="sec-l"><span class="sec-q">'+q+'</span><div class="sec-t">'+q+'級品</div></div>'
+    + '<div class="sec-kpi">'+groups.length+'グループ ・ '+cards+'規格 ・ 在庫計 '+stk.toLocaleString()+'束</div></div>';
 }
 function cardHTML(g,mode){
   const head='<h2><span class="q '+(g.quality==='B'?'b':'')+'">'+g.quality+'級</span>'+g.width+' '+g.type+'<span class="stk">在庫計 '+g.stockSum+'束</span></h2>';
