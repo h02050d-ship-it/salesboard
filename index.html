@@ -148,6 +148,14 @@
   .gate-box input{width:100%;padding:13px 14px;font-size:15px;border:2px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink);text-align:center;font-family:inherit}
   .gate-box input:focus{outline:none;border-color:var(--accent)}
   .gate-box button{width:100%;margin-top:12px;padding:13px;border:0;border-radius:11px;background:var(--accent);color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}
+  .gate-box button:disabled{opacity:.6;cursor:default}
+  .gate-box .pw-wrap{position:relative}
+  .gate-box .pw-wrap input{padding-right:46px}
+  .gate-box .pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:auto;margin:0;padding:6px 8px;background:transparent;color:var(--sub);font-size:18px;line-height:1}
+  .gate-box .keep{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:13px;font-size:12px;color:var(--sub);cursor:pointer}
+  .gate-box .keep input{width:auto;margin:0}
+  .spin{width:26px;height:26px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;display:block;margin:0 auto 14px;animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .gate-box .err{color:var(--r-ink);font-size:12px;font-weight:700;margin-top:12px;min-height:16px}
   .gate-box .lock{font-size:11px;color:var(--sub);margin-top:16px}
   @media(max-width:560px){ .kpis{order:3;width:100%} .brand{margin-right:0} .search input{width:130px} }
@@ -162,8 +170,12 @@
     <h2>売れ行き＆在庫ボード</h2>
     <p>在庫情報のため、登録メールとパスワードでログインしてください。</p>
     <input id="gateMail" type="email" placeholder="メールアドレス" autocomplete="username" style="margin-bottom:9px">
-    <input id="gatePass" type="password" placeholder="パスワード" autocomplete="current-password">
+    <div class="pw-wrap">
+      <input id="gatePass" type="password" placeholder="パスワード" autocomplete="current-password">
+      <button type="button" id="pwEye" class="pw-eye" aria-label="パスワードを表示">👁</button>
+    </div>
     <button id="gateBtn">ログイン</button>
+    <label class="keep"><input type="checkbox" id="gateKeep" checked> ログインを保持する</label>
     <div class="err" id="gateErr"></div>
     <div class="lock">🔒 メール・パスはこの端末のセッションにのみ保持され、サーバ側で照合します。</div>
   </div>
@@ -292,15 +304,22 @@ let edits={};          // key 'gi|L|G' -> {stock?, price?}
 let SOURCE='';         // 'live' | 'sample'
 const ckey=(gi,L,G)=>gi+'|'+L+'|'+G;
 
-function creds(){ try{ return JSON.parse(sessionStorage.getItem(CRED_KEY)||'{}'); }catch(e){ return {}; } }
+// ログイン情報: 「保持する」=localStorage（次回も維持）/ しない=sessionStorage（タブ閉じで消える）
+function creds(){ try{ return JSON.parse(localStorage.getItem(CRED_KEY)||sessionStorage.getItem(CRED_KEY)||'{}'); }catch(e){ return {}; } }
 function authQS(){ const c=creds(); return 'email='+encodeURIComponent(c.email||'')+'&pass='+encodeURIComponent(c.pass||''); }
+function saveCreds(email,pass,keep){ const v=JSON.stringify({email,pass}); if(keep){ localStorage.setItem(CRED_KEY,v); sessionStorage.removeItem(CRED_KEY); } else { sessionStorage.setItem(CRED_KEY,v); localStorage.removeItem(CRED_KEY); } }
+function clearCreds(){ localStorage.removeItem(CRED_KEY); sessionStorage.removeItem(CRED_KEY); }
 
 /* ===== 起動 ===== */
 function boot(){
   const c=creds();
-  if(GAS_URL && c.email && c.pass){ fetchLive(); }
+  if(GAS_URL && c.email && c.pass){ document.getElementById('gate').style.display='none'; showLoading(); fetchLive(); }
   else if(GAS_URL){ showGate(); }
   else { useSample('（接続未設定）'); }
+}
+function showLoading(){
+  const b=document.getElementById('srcBadge'); b.className='src-badge'; b.textContent='● 読込中…';
+  document.getElementById('grid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:64px 0"><div class="spin"></div>在庫データを読み込み中…</div>';
 }
 function showGate(err){
   document.getElementById('gate').style.display='flex';
@@ -308,23 +327,28 @@ function showGate(err){
   setTimeout(()=>document.getElementById('gateMail').focus(),50);
 }
 document.getElementById('gateBtn').onclick=submitGate;
+document.getElementById('pwEye').onclick=()=>{ const i=document.getElementById('gatePass'); const show=i.type==='password'; i.type=show?'text':'password'; document.getElementById('pwEye').textContent=show?'🙈':'👁'; i.focus(); };
 ['gateMail','gatePass'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{ if(e.key==='Enter') submitGate(); }));
 function submitGate(){
   const email=document.getElementById('gateMail').value.trim();
   const pass=document.getElementById('gatePass').value;
+  const keep=document.getElementById('gateKeep').checked;
   if(!email||!pass) return;
-  sessionStorage.setItem(CRED_KEY,JSON.stringify({email,pass}));
-  document.getElementById('gateErr').textContent='照合中…';
-  fetchLive(true);
+  // 楽観的に保存してゲートを即閉じ→スピナー→1回のGETで認証＋データ取得（待ち感をなくす）
+  saveCreds(email,pass,keep);
+  document.getElementById('gateErr').textContent='';
+  document.getElementById('gate').style.display='none';
+  showLoading();
+  fetchLive();
 }
 
-async function fetchLive(fromGate){
+async function fetchLive(){
   try{
     const r=await fetch(GAS_URL+'?api=board&'+authQS(),{method:'GET'});
     const j=await r.json();
     if(!j.ok){
-      sessionStorage.removeItem(CRED_KEY);
-      showGate(j.error==='unauthorized'?'メールまたはパスワードが違います':('エラー: '+(j.error||'不明')));
+      if(j.error==='unauthorized'){ clearCreds(); showGate('メールまたはパスワードが違います'); }
+      else gridError('エラー: '+(j.error||'不明'));
       return;
     }
     DATA=normalizeGroups(j.groups);
@@ -334,10 +358,12 @@ async function fetchLive(fromGate){
     const b=document.getElementById('srcBadge'); b.className='src-badge live'; b.textContent='● ライブ（実在庫）';
     document.getElementById('subline').textContent='更新 '+j.updated+'　履歴最古 '+(j.horizon||'—');
     render();
-  }catch(e){
-    if(fromGate){ showGate('接続できませんでした（ネット/URL）'); }
-    else { useSample('接続失敗'); }
-  }
+  }catch(e){ gridError('読み込みに失敗しました（ネット／一時的なGoogle応答）'); }
+}
+function gridError(msg){
+  const b=document.getElementById('srcBadge'); b.className='src-badge err'; b.textContent='● エラー';
+  document.getElementById('grid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:56px 0">'+msg
+    +'<br><button onclick="fetchLive()" style="margin-top:14px;padding:10px 22px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:800;cursor:pointer;font-family:inherit">再読込</button></div>';
 }
 function useSample(why){
   DATA=normalizeGroups(SAMPLE); SOURCE='sample';
@@ -345,7 +371,7 @@ function useSample(why){
   const b=document.getElementById('srcBadge'); b.className='src-badge err'; b.textContent='● サンプル'+(why?'（'+why+'）':'');
   render();
 }
-document.getElementById('srcBadge').onclick=()=>{ if(GAS_URL){ sessionStorage.removeItem(CRED_KEY); showGate(); } };
+document.getElementById('srcBadge').onclick=()=>{ if(GAS_URL){ clearCreds(); showGate(); } };
 
 function normalizeGroups(groups){
   return groups.map((g,gi)=>{
