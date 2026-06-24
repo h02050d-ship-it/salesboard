@@ -45,6 +45,8 @@
   .seg button{border:0;background:transparent;color:var(--sub);font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;font-family:inherit}
   .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
   select,.search input{font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+  .tbtn{font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 13px;cursor:pointer;white-space:nowrap}
+  .tbtn:hover{border-color:var(--accent);color:var(--accent)}
   .search{position:relative}
   .search input{padding-left:30px;width:170px}
   .search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);opacity:.5}
@@ -219,6 +221,7 @@
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
     <input id="q" placeholder="規格を検索…">
   </div>
+  <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
   <div class="spacer"></div>
   <div class="legend">
     <span><i style="background:var(--g)"></i>〜2か月</span>
@@ -538,6 +541,51 @@ async function applyEdits(){
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();});
 ['sortSel','qSel'].forEach(id=>document.getElementById(id).onchange=render);
 document.getElementById('q').oninput=render;
+
+/* ===== 在庫チェック表（棚卸し記入用紙）を印刷 ===== */
+document.getElementById('printBtn').onclick=printCountSheet;
+function printCountSheet(){
+  if(SOURCE!=='live'){ alert('サンプル表示中です。ログインして実在庫に接続すると印刷できます。'); return; }
+  const w=window.open('','_blank','width=1000,height=720');
+  if(!w){ alert('ポップアップがブロックされました。ポップアップを許可してください。'); return; }
+  w.document.write('<!doctype html><meta charset="utf-8"><title>在庫チェック表</title><body style="font-family:sans-serif;padding:48px;color:#666">在庫チェック表を生成中…</body>');
+  w.document.close();
+  fetch(GAS_URL+'?api=countsheet&'+authQS()).then(r=>r.json()).then(j=>{
+    if(!j.ok){ w.document.body.innerHTML='エラー: '+(j.error||'不明'); return; }
+    w.document.open(); w.document.write(buildCountHTML(j.blocks||[])); w.document.close();
+    w.focus(); setTimeout(()=>{ try{ w.print(); }catch(e){} }, 350);
+  }).catch(e=>{ try{ w.document.body.innerHTML='生成に失敗しました: '+e.message; }catch(_){} });
+}
+function buildCountHTML(blocks){
+  const now=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const lenLbl=(L)=>BUNDLE[L]?(L+'('+BUNDLE[L]+')'):L;
+  let body='';
+  blocks.forEach(b=>{
+    const grades=b.grades||[], lens=b.lengths||[];
+    if(!grades.length||!lens.length) return;
+    let t='<table><thead><tr><th>長さ＼等級</th>'+grades.map(g=>'<th>'+g+'</th>').join('')+'</tr></thead><tbody>';
+    lens.forEach(L=>{ t+='<tr><td class="len">'+lenLbl(L)+'</td>'+grades.map(()=>'<td class="box"></td>').join('')+'</tr>'; });
+    t+='</tbody></table>';
+    body+='<div class="blk"><div class="t">'+(b.label||'')+'</div>'+t+'</div>';
+  });
+  return '<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>在庫チェック表</title><style>'
+    +'@page{size:A4 landscape;margin:8mm}*{box-sizing:border-box}'
+    +'body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:#000;margin:0;padding:6px}'
+    +'.hd{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #000;padding-bottom:6px;margin-bottom:10px}'
+    +'.hd h1{font-size:18px;margin:0}.hd .meta span{display:inline-block;margin-left:18px;border-bottom:1px solid #000;min-width:120px;text-align:left;padding:0 6px 1px}'
+    +'.blocks{column-count:2;column-gap:14px}'
+    +'.blk{break-inside:avoid;-webkit-column-break-inside:avoid;margin-bottom:12px;border:1px solid #333;border-radius:3px;overflow:hidden}'
+    +'.blk .t{background:#e9e9e9;font-weight:bold;font-size:12px;padding:4px 8px;border-bottom:1px solid #333}'
+    +'table{width:100%;border-collapse:collapse}th,td{border:1px solid #888;font-size:11px;text-align:center}'
+    +'th{background:#f3f3f3;padding:3px}td.len{background:#f7f7f7;font-weight:bold;white-space:nowrap;padding:3px 6px}td.box{height:30px}'
+    +'.note{font-size:10px;color:#444;margin-top:8px}.noprint{text-align:center;margin-top:16px}@media print{.noprint{display:none}}'
+    +'</style></head><body>'
+    +'<div class="hd"><h1>在庫チェック表（棚卸し）</h1><div class="meta"><span>実施日：</span><span>担当：</span></div></div>'
+    +'<div class="blocks">'+body+'</div>'
+    +'<div class="note">印字 '+now+'　／　単位＝束（長さラベルの括弧内は1束あたり枚数）。空欄に数えた実数を記入してください。</div>'
+    +'<div class="noprint"><button onclick="window.print()" style="padding:10px 26px;font-size:14px;font-weight:bold;cursor:pointer;border-radius:8px;border:1px solid #333;background:#fff">🖨 印刷する</button></div>'
+    +'</body></html>';
+}
 document.getElementById('foot').innerHTML='色＝最終販売からの経過（Yahoo・楽天の直近販売基準）。空欄＝該当規格なし／無限在庫。在庫は<b>束</b>表示。計算ロジックはスプシ <code>getUnsoldProds_()</code> と一致。'
  +' &nbsp;|&nbsp; 在庫＝資産情報のため合言葉で保護。価格はYahoo（スノコ板のみ楽天）に反映、楽天の他SKU価格は体系違いのため遮断。';
 
