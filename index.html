@@ -343,10 +343,14 @@ function boot(){
   else if(GAS_URL){ showGate(); }
   else { useSample('（接続未設定）'); }
 }
+let loadingMsgTimer=null;
 function showLoading(){
   const b=document.getElementById('srcBadge'); b.className='src-badge'; b.textContent='● 読込中…';
-  document.getElementById('grid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:64px 0"><div class="spin"></div>在庫データを読み込み中…</div>';
+  document.getElementById('grid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:64px 0"><div class="spin"></div>在庫データを読み込み中…<div id="loadingHint" style="font-size:11px;margin-top:9px;opacity:.85"></div></div>';
+  if(loadingMsgTimer) clearTimeout(loadingMsgTimer);
+  loadingMsgTimer=setTimeout(()=>{ const h=document.getElementById('loadingHint'); if(h) h.textContent='サーバ起動中のため初回は最大20秒ほどかかることがあります…（次回からは即表示）'; },6000);
 }
+function clearLoadingMsg(){ if(loadingMsgTimer){ clearTimeout(loadingMsgTimer); loadingMsgTimer=null; } }
 function showGate(err){
   document.getElementById('gate').style.display='flex';
   document.getElementById('gateErr').textContent=err||'';
@@ -369,26 +373,41 @@ function submitGate(){
   startAutoRefresh();
 }
 
+// GASは時々302→HTML(一時応答)や遅延あり。タイムアウト付き＋JSON判定で1回掴む。
+async function fetchBoardOnce(timeoutMs){
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(), timeoutMs||16000);
+  try{
+    const r=await fetch(GAS_URL+'?api=board&'+authQS(),{method:'GET',signal:ctrl.signal});
+    const t=await r.text();
+    if(!t || t.trim().charAt(0)!=='{') throw new Error('応答が不正（Googleの一時応答）');
+    return JSON.parse(t);
+  } finally { clearTimeout(to); }
+}
 async function fetchLive(opts){
   opts=opts||{};
   setRefreshing(true);
-  try{
-    const r=await fetch(GAS_URL+'?api=board&'+authQS(),{method:'GET'});
-    const j=await r.json();
-    if(!j.ok){
-      if(j.error==='unauthorized'){ clearCreds(); showGate('メールまたはパスワードが違います'); }
-      else if(SOURCE!=='live') gridError('エラー: '+(j.error||'不明'));   // 既に表示中なら据え置き
-      return;
-    }
-    applyData(j,false);
-    saveCache(j);
-  }catch(e){
-    // 既に前回データを表示中なら、裏更新の失敗は無視して表示を維持
-    if(SOURCE!=='live') gridError('読み込みに失敗しました（ネット／一時的なGoogle応答）');
-  }finally{ setRefreshing(false); }
+  let j=null;
+  for(let attempt=0; attempt<2 && !j; attempt++){     // 失敗/タイムアウトは1回だけ自動リトライ
+    try{ j=await fetchBoardOnce(16000); }catch(e){ j=null; }
+  }
+  setRefreshing(false);
+  if(!j){
+    // 既に前回データ表示中なら据え置き（裏更新の失敗は無視）。未表示ならリトライ導線を出す。
+    if(SOURCE!=='live') gridError('読み込みに時間がかかっています（サーバ起動中かもしれません）。');
+    return;
+  }
+  if(!j.ok){
+    if(j.error==='unauthorized'){ clearCreds(); showGate('メールまたはパスワードが違います'); }
+    else if(SOURCE!=='live') gridError('エラー: '+(j.error||'不明'));
+    return;
+  }
+  applyData(j,false);
+  saveCache(j);
 }
 // 取得データ（実通信 or キャッシュ）を画面へ反映
 function applyData(j,fromCache){
+  clearLoadingMsg();
   DATA=normalizeGroups(j.groups);
   MALLBASE.yahoo=j.yahooBase||''; MALLBASE.rakuten=j.rakutenBase||'';
   COUNTSHEET=j.countsheet||[];
@@ -418,6 +437,7 @@ function saveCache(j){
 }
 function loadCache(){ try{ const s=localStorage.getItem(CACHE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function gridError(msg){
+  clearLoadingMsg();
   const b=document.getElementById('srcBadge'); b.className='src-badge err'; b.textContent='● エラー';
   document.getElementById('grid').innerHTML='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:56px 0">'+msg
     +'<br><button onclick="fetchLive()" style="margin-top:14px;padding:10px 22px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-weight:800;cursor:pointer;font-family:inherit">再読込</button></div>';
