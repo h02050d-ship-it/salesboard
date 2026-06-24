@@ -388,8 +388,8 @@ async function fetchLive(opts){
   opts=opts||{};
   setRefreshing(true);
   let j=null;
-  for(let attempt=0; attempt<3 && !j; attempt++){     // 失敗/タイムアウト/一時応答は最大2回まで自動リトライ
-    try{ j=await fetchBoardOnce(attempt===0?16000:9000); }catch(e){ j=null; }
+  for(let attempt=0; attempt<3 && !j; attempt++){     // 初回は25秒(コールド対応)→以降12秒。一時応答404は最大2回まで自動リトライ
+    try{ j=await fetchBoardOnce(attempt===0?25000:12000); }catch(e){ j=null; }
   }
   setRefreshing(false);
   if(!j){
