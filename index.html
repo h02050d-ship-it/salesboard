@@ -526,12 +526,13 @@ function cardHTML(g,mode){
       const c=g.cells[L+'|'+G];
       if(!c) return '<td><div class="cell empty"></div></td>';
       const s=curStock(g.gi,c), p=curPrice(g.gi,c);
+      const sDisp=c.infinite?'∞':s;
       const ed=isEdited(g.gi,c)?' edited':'';
       let cls,main;
-      if(mode==='stock'){ cls='bg-'+stockBucket(s); main=s; }
+      if(mode==='stock'){ cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
       else { cls='bg-'+bucket(c.combined); main=ageShort(c.combined); }
-      return '<td><div class="cell '+cls+ed+'" data-gi="'+g.gi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+s+'</span></div></td>';
+      return '<td><div class="cell '+cls+ed+'" data-gi="'+g.gi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
     }).join('');
     return '<tr><th>'+L+bd+'</th>'+tds+'</tr>';
   }).join('');
@@ -563,28 +564,31 @@ function openDrawer(gi,key){
     + '<div class="stepper price"><button onclick="bumpPrice(-100)">−</button><input id="prIn" type="number" inputmode="numeric" value="'+p+'"><button onclick="bumpPrice(100)">＋</button></div>'
     + '<div class="orig">現在の登録: '+yen(c.price)+(p!==c.price?' → <b style="color:var(--accent)">'+yen(p)+'</b>':'')+'</div></div>'
     : '<div class="edit"><div class="pr-lock">この規格は価格編集の対象外（楽天専用体系などのため）。現在: '+yen(c.price)+'</div></div>';
+  const stockBlock = c.infinite ?
+      '<div class="edit"><div class="et">📦 在庫</div><div class="pr-lock">♾ 無限在庫（在庫管理の対象外）。モールへは常時 100 を送信します。</div></div>'
+    : '<div class="edit"><div class="et">📦 在庫を編集（束）</div>'
+    + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="numeric" value="'+s+'"><button onclick="bumpStock(1)">＋</button></div>'
+    + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）</div>'
+    + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div></div>';
   document.getElementById('dBody').innerHTML=
     '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
    + mallHTML('Yahoo!','yh',c.yahoo,'yahoo') + mallHTML('楽天','rk',c.rakuten,'rakuten')
-   + '<div class="edit"><div class="et">📦 在庫を編集（束）</div>'
-   + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="numeric" value="'+s+'"><button onclick="bumpStock(1)">＋</button></div>'
-   + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）</div>'
-   + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div></div>'
+   + stockBlock
    + priceBlock
    + '<div class="save-row"><button class="btn ghost" onclick="resetCell()">戻す</button><button class="btn primary" onclick="stageCell()">変更を保留に追加</button></div>'
    + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫は束換算 910/2000=20・3000=10・4000=8枚）。</div>';
   document.getElementById('scrim').classList.add('show');
   document.getElementById('drawer').classList.add('show');
 }
-function bumpStock(d){ const i=document.getElementById('stkIn'); i.value=Math.max(0,(+i.value||0)+d); }
+function bumpStock(d){ const i=document.getElementById('stkIn'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
 function bumpPrice(d){ const i=document.getElementById('prIn'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
-function resetCell(){ document.getElementById('stkIn').value=cur.c.stock; const pr=document.getElementById('prIn'); if(pr) pr.value=cur.c.price; }
+function resetCell(){ const st=document.getElementById('stkIn'); if(st) st.value=cur.c.stock; const pr=document.getElementById('prIn'); if(pr) pr.value=cur.c.price; }
 function stageCell(){
   const k=ckey(cur.gi,cur.c.length,cur.c.grade);
-  const sv=Math.max(0,+document.getElementById('stkIn').value||0);
+  const stEl=document.getElementById('stkIn');   // 無限在庫セルには入力欄が無い
   const prEl=document.getElementById('prIn');
   const rec={};
-  if(sv!==cur.c.stock) rec.stock=sv;
+  if(stEl){ const sv=Math.max(0,+stEl.value||0); if(sv!==cur.c.stock) rec.stock=sv; }
   if(prEl){ const pv=Math.max(0,+prEl.value||0); if(pv!==cur.c.price) rec.price=pv; }
   if(Object.keys(rec).length) edits[k]=rec; else delete edits[k];
   closeDrawer(); render();
