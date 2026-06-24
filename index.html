@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>林材木店 売れ行き＆在庫ボード</title>
+<style>
+  :root{
+    --bg:#f4f1ea; --card:#fffdf8; --ink:#2c2a26; --sub:#7a756c; --line:#e3ddd0;
+    --accent:#7a5c3e; --accent2:#a87f53; --shadow:0 1px 3px rgba(60,45,25,.08),0 6px 20px rgba(60,45,25,.06);
+    --g:#d9ead3; --g-ink:#26611f; --y:#fff2cc; --y-ink:#7a5d00;
+    --o:#fce5cd; --o-ink:#9c4a00; --r:#f4cccc; --r-ink:#a61c00; --u:#ececec; --u-ink:#777;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1c1a17; --card:#26231f; --ink:#ece7dd; --sub:#9c958a; --line:#3a352e;
+      --accent:#caa777; --accent2:#a87f53; --shadow:0 1px 3px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+      --g:#2e4628; --g-ink:#bfe3b3; --y:#4a4222; --y-ink:#f0dd9a;
+      --o:#4d3622; --o-ink:#f3c293; --r:#4d2727; --r-ink:#f0a9a9; --u:#33302b; --u-ink:#9c958a;
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic UI","Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  body{padding:0 0 80px}
+  a{color:var(--accent)}
+
+  header{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,var(--card),var(--card) 70%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  .head-inner{max-width:1280px;margin:0 auto;padding:14px 20px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:14px}
+  .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
+  .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#fff;font-weight:800;font-size:19px;box-shadow:var(--shadow)}
+  .brand h1{font-size:17px;font-weight:800;letter-spacing:.02em;line-height:1.2}
+  .brand .sub{font-size:11px;color:var(--sub);margin-top:2px}
+  .src-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--sub);white-space:nowrap;cursor:pointer}
+  .src-badge.live{color:#1a7f37;border-color:#1a7f3733;background:#1a7f3712}
+  .src-badge.err{color:var(--r-ink);border-color:#a61c0033;background:#a61c0010}
+
+  .kpis{display:flex;gap:8px;flex-wrap:wrap}
+  .kpi{background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:7px 13px;min-width:84px}
+  .kpi .n{font-size:18px;font-weight:800;line-height:1}
+  .kpi .l{font-size:10.5px;color:var(--sub);margin-top:3px}
+  .kpi.warn .n{color:var(--o-ink)}
+
+  .toolbar{max-width:1280px;margin:0 auto;padding:12px 20px 4px;display:flex;flex-wrap:wrap;gap:9px;align-items:center}
+  .seg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+  .seg button{border:0;background:transparent;color:var(--sub);font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:7px;cursor:pointer;font-family:inherit}
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  select,.search input{font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
+  .search{position:relative}
+  .search input{padding-left:30px;width:170px}
+  .search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);opacity:.5}
+  .spacer{flex:1}
+  .legend{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:10.5px;color:var(--sub)}
+  .legend i{display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:3px;vertical-align:-2px;border:1px solid rgba(0,0,0,.08)}
+
+  .grid{max-width:1280px;margin:0 auto;padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;align-items:start}
+  .gcard{background:var(--card);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);overflow:hidden}
+  .gcard h2{font-size:13.5px;font-weight:800;padding:12px 15px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(122,92,62,.07),transparent)}
+  .gcard h2 .q{font-size:10px;font-weight:800;color:#fff;background:var(--accent);padding:2px 7px;border-radius:6px}
+  .gcard h2 .q.b{background:var(--accent2)}
+  .gcard h2 .stk{margin-left:auto;font-size:11px;font-weight:700;color:var(--sub)}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{padding:0;text-align:center}
+  thead th{font-size:11px;font-weight:700;color:var(--sub);padding:7px 2px;border-bottom:1px solid var(--line)}
+  thead th.corner{text-align:left;padding-left:14px;font-size:10.5px}
+  tbody th{font-weight:700;font-size:11px;color:var(--ink);text-align:left;padding:0 0 0 13px;white-space:nowrap;width:74px}
+  tbody th small{color:var(--sub);font-weight:600}
+  .cell{margin:3px;height:48px;border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;border:1px solid transparent;transition:transform .08s,box-shadow .12s;position:relative}
+  .cell:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(60,45,25,.16);border-color:rgba(0,0,0,.12)}
+  .cell .age{font-size:12.5px;font-weight:800;line-height:1}
+  .cell .stk{font-size:10px;margin-top:3px;opacity:.85;font-weight:700}
+  .cell.empty{background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(120,110,95,.05) 5px,rgba(120,110,95,.05) 10px);cursor:default;border:1px dashed var(--line)}
+  .cell.empty:hover{transform:none;box-shadow:none}
+  .cell.edited::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--card)}
+  .bg-g{background:var(--g);color:var(--g-ink)} .bg-y{background:var(--y);color:var(--y-ink)}
+  .bg-o{background:var(--o);color:var(--o-ink)} .bg-r{background:var(--r);color:var(--r-ink)}
+  .bg-u{background:var(--u);color:var(--u-ink)}
+  .stkmode .cell .age{font-size:15px} .stkmode .cell .stk{display:none}
+  .prmode .cell .age{font-size:12px} .prmode .cell .stk{display:none}
+
+  .scrim{position:fixed;inset:0;background:rgba(20,15,8,.38);opacity:0;pointer-events:none;transition:.2s;z-index:40}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:380px;max-width:90vw;background:var(--card);border-left:1px solid var(--line);box-shadow:-10px 0 40px rgba(40,25,10,.2);transform:translateX(100%);transition:transform .24s cubic-bezier(.4,0,.2,1);z-index:41;display:flex;flex-direction:column}
+  .drawer.show{transform:none}
+  .drawer .dh{padding:18px 20px 14px;border-bottom:1px solid var(--line)}
+  .drawer .dh .grp{font-size:11.5px;color:var(--sub);font-weight:700}
+  .drawer .dh .ttl{font-size:19px;font-weight:800;margin-top:3px}
+  .drawer .dh .x{position:absolute;top:14px;right:14px;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--bg);cursor:pointer;font-size:17px;color:var(--sub)}
+  .dbody{padding:18px 20px;overflow:auto;flex:1}
+  .combined{display:flex;align-items:center;gap:12px;padding:14px;border-radius:13px;margin-bottom:18px}
+  .combined .big{font-size:26px;font-weight:800;line-height:1}
+  .combined .cl{font-size:11.5px;font-weight:700;opacity:.8}
+  .mall{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px}
+  .mall .ml{font-size:13px;font-weight:800;display:flex;align-items:center;gap:7px}
+  .mall .dot{width:9px;height:9px;border-radius:50%}
+  .mall .yh{background:#ff2e6e}.mall .rk{background:#bf0000}
+  .mall .md{text-align:right}
+  .mall .md .d{font-size:15px;font-weight:800}
+  .mall .md .s{font-size:10.5px;color:var(--sub);margin-top:2px}
+  .mall.none{opacity:.5}
+  .code{font-size:10px;color:var(--sub);font-family:ui-monospace,monospace;margin-top:3px}
+
+  .edit{margin-top:16px;padding:16px;border:1px solid var(--line);border-radius:13px;background:var(--bg)}
+  .edit .et{font-size:12px;font-weight:800;color:var(--sub);margin-bottom:11px;display:flex;align-items:center;gap:6px}
+  .stepper{display:flex;align-items:center;gap:10px;justify-content:center}
+  .stepper button{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);font-size:22px;font-weight:700;color:var(--accent);cursor:pointer;box-shadow:var(--shadow)}
+  .stepper button:active{transform:scale(.94)}
+  .stepper input{width:92px;height:52px;text-align:center;font-size:24px;font-weight:800;border:2px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink)}
+  .stepper input:focus{outline:none;border-color:var(--accent)}
+  .stepper.price input{width:120px;font-size:21px}
+  .unit{font-size:12px;color:var(--sub);font-weight:700;text-align:center;margin-top:8px}
+  .orig{text-align:center;font-size:11px;color:var(--sub);margin-top:7px}
+  .pr-lock{font-size:11px;color:var(--sub);text-align:center;padding:6px}
+  .note-tip{font-size:11px;color:var(--sub);margin-top:14px;line-height:1.6;padding:11px;background:var(--bg);border-radius:10px}
+
+  .savebar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(160%);transition:transform .25s;z-index:35;display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--card);padding:11px 14px 11px 20px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+  .savebar.show{transform:translateX(-50%)}
+  .savebar .t{font-size:13px;font-weight:700}
+  .savebar .t b{color:var(--accent);font-size:15px}
+  .savebar button{border:0;border-radius:10px;padding:9px 16px;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit}
+  .savebar .apply{background:var(--accent);color:#fff}
+  .savebar .apply:disabled{opacity:.5}
+  .savebar .undo{background:transparent;color:var(--card);opacity:.7;text-decoration:underline}
+  .btn{flex:1;padding:13px;border-radius:12px;border:0;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .btn.primary{background:var(--accent);color:#fff}
+  .save-row{display:flex;gap:9px;margin-top:13px}
+  .btn.ghost{background:var(--bg);color:var(--sub);border:1px solid var(--line);flex:0 0 auto;padding:13px 16px}
+
+  footer{max-width:1280px;margin:0 auto;padding:8px 22px;font-size:11px;color:var(--sub);line-height:1.7}
+  .demo-ban{max-width:1280px;margin:14px auto 0;padding:11px 16px;background:#fff2cc22;border:1px solid #e0c34d55;border-radius:12px;font-size:12px;color:var(--ink);display:flex;gap:9px;align-items:center}
+  .demo-ban b{color:var(--o-ink)}
+
+  /* 合言葉ゲート */
+  .gate{position:fixed;inset:0;z-index:60;background:var(--bg);display:flex;align-items:center;justify-content:center;padding:24px}
+  .gate-box{background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:32px 28px;width:360px;max-width:100%;text-align:center}
+  .gate-box .logo{width:48px;height:48px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#fff;font-weight:800;font-size:24px;margin:0 auto 14px}
+  .gate-box h2{font-size:17px;font-weight:800}
+  .gate-box p{font-size:12px;color:var(--sub);margin:7px 0 18px;line-height:1.6}
+  .gate-box input{width:100%;padding:13px 14px;font-size:15px;border:2px solid var(--line);border-radius:11px;background:var(--bg);color:var(--ink);text-align:center;font-family:inherit}
+  .gate-box input:focus{outline:none;border-color:var(--accent)}
+  .gate-box button{width:100%;margin-top:12px;padding:13px;border:0;border-radius:11px;background:var(--accent);color:#fff;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit}
+  .gate-box .err{color:var(--r-ink);font-size:12px;font-weight:700;margin-top:12px;min-height:16px}
+  .gate-box .lock{font-size:11px;color:var(--sub);margin-top:16px}
+  @media(max-width:560px){ .kpis{order:3;width:100%} .brand{margin-right:0} .search input{width:130px} }
+</style>
+</head>
+<body>
+
+<!-- 合言葉ゲート -->
+<div class="gate" id="gate" style="display:none">
+  <div class="gate-box">
+    <div class="logo">林</div>
+    <h2>売れ行き＆在庫ボード</h2>
+    <p>在庫情報のため、登録メールとパスワードでログインしてください。</p>
+    <input id="gateMail" type="email" placeholder="メールアドレス" autocomplete="username" style="margin-bottom:9px">
+    <input id="gatePass" type="password" placeholder="パスワード" autocomplete="current-password">
+    <button id="gateBtn">ログイン</button>
+    <div class="err" id="gateErr"></div>
+    <div class="lock">🔒 メール・パスはこの端末のセッションにのみ保持され、サーバ側で照合します。</div>
+  </div>
+</div>
+
+<header>
+  <div class="head-inner">
+    <div class="brand">
+      <div class="logo">林</div>
+      <div>
+        <h1>売れ行き＆在庫ボード</h1>
+        <div class="sub" id="subline">林材木店 EC在庫一元管理 — 桧フローリング・羽目板</div>
+      </div>
+    </div>
+    <span id="srcBadge" class="src-badge">● 読込中…</span>
+    <div class="kpis">
+      <div class="kpi"><div class="n" id="kSku">–</div><div class="l">規格数</div></div>
+      <div class="kpi warn"><div class="n" id="kStale">–</div><div class="l">滞留(60日〜/不明)</div></div>
+      <div class="kpi"><div class="n" id="kStock">–</div><div class="l">在庫合計(束)</div></div>
+    </div>
+  </div>
+</header>
+
+<div class="toolbar">
+  <div class="seg" id="modeSeg">
+    <button data-mode="age" class="on">🔥 売れ行き</button>
+    <button data-mode="stock">📦 在庫数</button>
+    <button data-mode="price">💴 価格</button>
+  </div>
+  <select id="sortSel">
+    <option value="stock">並び: 在庫が多い順</option>
+    <option value="stale">並び: 滞留が長い順</option>
+    <option value="name">並び: 規格名順</option>
+  </select>
+  <select id="qSel">
+    <option value="">品質: すべて</option>
+    <option value="A">A級のみ</option>
+    <option value="B">B級のみ</option>
+  </select>
+  <div class="search">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
+    <input id="q" placeholder="規格を検索…">
+  </div>
+  <div class="spacer"></div>
+  <div class="legend">
+    <span><i style="background:var(--g)"></i>〜2か月</span>
+    <span><i style="background:var(--y)"></i>2か月〜</span>
+    <span><i style="background:var(--o)"></i>半年〜</span>
+    <span><i style="background:var(--r)"></i>1年〜</span>
+    <span><i style="background:var(--u)"></i>不明</span>
+  </div>
+</div>
+
+<div class="demo-ban" id="demoBan" style="display:none">
+  <span>🧪</span>
+  <div><b>サンプル表示中</b> — 実データに接続できないためデモ表示です。右上のバッジから合言葉を入れ直すと実在庫に接続します。</div>
+</div>
+
+<div class="grid" id="grid"></div>
+<footer id="foot"></footer>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dh"><div class="grp" id="dGrp"></div><div class="ttl" id="dTtl"></div><button class="x" id="dX">✕</button></div>
+  <div class="dbody" id="dBody"></div>
+</aside>
+
+<div class="savebar" id="saveBar">
+  <div class="t"><b id="sbN">0</b> 件を変更</div>
+  <button class="undo" id="sbUndo">取消</button>
+  <button class="apply" id="sbApply">保存して同期</button>
+</div>
+
+<script>
+/* ===== 接続設定 ===== */
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxvPjDv81vrJMW2GaqpCJooyxxt7__gvMF4mJkmcGNbNS2xGMoXgTnn6_OEPZ3Rr0spdg/exec";
+const CRED_KEY = 'hayazai_board_cred';
+
+/* ===== 色・整形 ===== */
+function bucket(d){ if(d===null||d===undefined) return 'u'; if(d>=365) return 'r'; if(d>=180) return 'o'; if(d>=60) return 'y'; return 'g'; }
+function ageShort(d){ if(d===null||d===undefined) return '不明'; const y=Math.floor(d/365), m=Math.floor((d%365)/30); return (y>0?y+'年':'')+m+'か月'; }
+function ageLong(d){ if(d===null||d===undefined) return '販売履歴なし'; const y=Math.floor(d/365), m=Math.floor((d%365)/30); return (y>0?y+'年':'')+m+'か月（'+d+'日）'; }
+function yen(n){ return '¥'+(Number(n)||0).toLocaleString(); }
+const BUNDLE={910:20,2000:20,3000:10,4000:8};
+const LEN_ORDER=[910,2000,3000,4000], GRADE_ORDER=['丸節','小節','特上小','無節'];
+const WIDTH2GROUP={'120mm幅':'標準','105mm幅':'幅狭','オリジナル':'オリジナル'};
+
+/* ===== サンプルデータ（実JSONと同形：cellsは配列） ===== */
+function C(length,grade,stock,price,y,r,snoko){
+  const yo=y?{days:y[0],date:y[1],code:y[2]}:null, ro=r?{days:r[0],date:r[1],code:r[2]}:null;
+  const ds=[yo,ro].filter(x=>x&&x.days!=null).map(x=>x.days);
+  return {length,grade,stock,price,priceEditable:!!yo||!!snoko,combined:ds.length?Math.min.apply(null,ds):null,yahoo:yo,rakuten:ro,coord:''};
+}
+const SAMPLE=[
+ {quality:'A',group:'標準',width:'120mm幅',type:'フローリング',cells:[
+   C(910,'丸節',36,5000,[6,'6/18','AF9101234R'],[12,'6/12','RF9101234R']),
+   C(910,'小節',22,6200,[41,'5/14','AF9105678R'],[63,'4/22','RF9105678R']),
+   C(910,'特上小',8,7200,[120,'2/24','AF9109012R'],[180,'12/26','RF9109012R']),
+   C(910,'無節',5,8200,[210,'11/26','AF9103456R'],null),
+   C(2000,'丸節',28,11000,[18,'6/6','AF2001234R'],[33,'5/22','RF2001234R']),
+   C(2000,'小節',14,13800,[88,'3/28','AF2005678R'],[140,'2/4','RF2005678R']),
+   C(2000,'特上小',6,16000,[260,'10/7','AF2009012R'],null),
+   C(3000,'小節',9,20000,[150,'1/25','AF3005678R'],null),
+ ]},
+ {quality:'A',group:'標準',width:'120mm幅',type:'羽目板',cells:[
+   C(910,'丸節',31,4600,[14,'6/10','AH9101234R'],[26,'5/29','RH9101234R']),
+   C(910,'小節',18,5600,[70,'4/15','AH9105678R'],[110,'3/6','RH9105678R']),
+   C(2000,'丸節',20,10200,[40,'5/15','AH2001234R'],[58,'4/27','RH2001234R']),
+   C(2000,'無節',4,17000,[720,'7/5','AH2003456R'],[860,'2/15','RH2003456R']),
+ ]},
+ {quality:'A',group:'標準',width:'120mm幅',type:'スノコ板',cells:[
+   C(910,'小節',15,5200,null,[52,'5/3','RS9105678R'],true),
+   C(910,'無節',6,7800,null,[200,'12/6','RS9103456R'],true),
+ ]},
+ {quality:'B',group:'標準',width:'120mm幅',type:'フローリング',cells:[
+   C(910,'丸節',44,3800,[3,'6/21','BF9101234R'],[9,'6/15','RBF910123R']),
+   C(910,'小節',30,4600,[28,'5/27','BF9105678R'],[48,'5/7','RBF910567R']),
+   C(910,'無節',10,6800,[165,'1/11','BF9103456R'],null),
+   C(2000,'丸節',26,8400,[22,'6/2','BF2001234R'],[37,'5/18','RBF200123R']),
+ ]},
+];
+
+/* ===== state ===== */
+let DATA=[];           // 正規化済み
+let edits={};          // key 'gi|L|G' -> {stock?, price?}
+let SOURCE='';         // 'live' | 'sample'
+const ckey=(gi,L,G)=>gi+'|'+L+'|'+G;
+
+function creds(){ try{ return JSON.parse(sessionStorage.getItem(CRED_KEY)||'{}'); }catch(e){ return {}; } }
+function authQS(){ const c=creds(); return 'email='+encodeURIComponent(c.email||'')+'&pass='+encodeURIComponent(c.pass||''); }
+
+/* ===== 起動 ===== */
+function boot(){
+  const c=creds();
+  if(GAS_URL && c.email && c.pass){ fetchLive(); }
+  else if(GAS_URL){ showGate(); }
+  else { useSample('（接続未設定）'); }
+}
+function showGate(err){
+  document.getElementById('gate').style.display='flex';
+  document.getElementById('gateErr').textContent=err||'';
+  setTimeout(()=>document.getElementById('gateMail').focus(),50);
+}
+document.getElementById('gateBtn').onclick=submitGate;
+['gateMail','gatePass'].forEach(id=>document.getElementById(id).addEventListener('keydown',e=>{ if(e.key==='Enter') submitGate(); }));
+function submitGate(){
+  const email=document.getElementById('gateMail').value.trim();
+  const pass=document.getElementById('gatePass').value;
+  if(!email||!pass) return;
+  sessionStorage.setItem(CRED_KEY,JSON.stringify({email,pass}));
+  document.getElementById('gateErr').textContent='照合中…';
+  fetchLive(true);
+}
+
+async function fetchLive(fromGate){
+  try{
+    const r=await fetch(GAS_URL+'?api=board&'+authQS(),{method:'GET'});
+    const j=await r.json();
+    if(!j.ok){
+      sessionStorage.removeItem(CRED_KEY);
+      showGate(j.error==='unauthorized'?'メールまたはパスワードが違います':('エラー: '+(j.error||'不明')));
+      return;
+    }
+    DATA=normalizeGroups(j.groups);
+    SOURCE='live';
+    document.getElementById('gate').style.display='none';
+    document.getElementById('demoBan').style.display='none';
+    const b=document.getElementById('srcBadge'); b.className='src-badge live'; b.textContent='● ライブ（実在庫）';
+    document.getElementById('subline').textContent='更新 '+j.updated+'　履歴最古 '+(j.horizon||'—');
+    render();
+  }catch(e){
+    if(fromGate){ showGate('接続できませんでした（ネット/URL）'); }
+    else { useSample('接続失敗'); }
+  }
+}
+function useSample(why){
+  DATA=normalizeGroups(SAMPLE); SOURCE='sample';
+  document.getElementById('demoBan').style.display='flex';
+  const b=document.getElementById('srcBadge'); b.className='src-badge err'; b.textContent='● サンプル'+(why?'（'+why+'）':'');
+  render();
+}
+document.getElementById('srcBadge').onclick=()=>{ if(GAS_URL){ sessionStorage.removeItem(CRED_KEY); showGate(); } };
+
+function normalizeGroups(groups){
+  return groups.map((g,gi)=>{
+    const cellsArr=g.cells||[];
+    const cmap={}; cellsArr.forEach(c=>{ cmap[c.length+'|'+c.grade]=c; });
+    const lens=LEN_ORDER.filter(L=>cellsArr.some(c=>+c.length===L));
+    const grades=GRADE_ORDER.filter(G=>cellsArr.some(c=>c.grade===G));
+    const grpInternal=g.group||WIDTH2GROUP[g.width]||g.width;
+    let stock=0,stale=0; cellsArr.forEach(c=>{stock+=(+c.stock||0); if(c.combined===null||c.combined>=60)stale++;});
+    return {gi, quality:g.quality, group:grpInternal, width:g.width||g.group, type:g.type,
+            name:g.name||(g.quality+'級 '+(g.width||'')+' '+g.type), lens, grades, cells:cmap, stockSum:stock, staleN:stale};
+  });
+}
+function curStock(gi,c){ const k=ckey(gi,c.length,c.grade); return (edits[k]&&'stock'in edits[k])?edits[k].stock:c.stock; }
+function curPrice(gi,c){ const k=ckey(gi,c.length,c.grade); return (edits[k]&&'price'in edits[k])?edits[k].price:c.price; }
+function isEdited(gi,c){ return !!edits[ckey(gi,c.length,c.grade)]; }
+
+/* ===== 描画 ===== */
+function render(){
+  const mode=document.querySelector('#modeSeg .on').dataset.mode;
+  const sort=document.getElementById('sortSel').value;
+  const qf=document.getElementById('qSel').value;
+  const kw=document.getElementById('q').value.trim();
+  document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':''));
+
+  let groups=DATA.filter(g=>(!qf||g.quality===qf)&&(!kw||g.name.includes(kw)));
+  groups=groups.slice().sort((a,b)=>{
+    if(sort==='stock') return b.stockSum-a.stockSum;
+    if(sort==='name')  return a.name.localeCompare(b.name,'ja');
+    const mx=g=>Math.max.apply(null,Object.values(g.cells).map(c=>c.combined===null?99999:c.combined));
+    return mx(b)-mx(a);
+  });
+
+  let sku=0,stale=0,stk=0;
+  groups.forEach(g=>Object.values(g.cells).forEach(c=>{sku++;stk+=(+curStock(g.gi,c)||0);if(c.combined===null||c.combined>=60)stale++;}));
+  document.getElementById('kSku').textContent=sku;
+  document.getElementById('kStale').textContent=stale;
+  document.getElementById('kStock').textContent=stk.toLocaleString();
+
+  const grid=document.getElementById('grid');
+  grid.innerHTML=groups.map(g=>cardHTML(g,mode)).join('')||'<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:60px">該当なし</div>';
+  grid.querySelectorAll('.cell:not(.empty)').forEach(el=>el.onclick=()=>openDrawer(+el.dataset.gi,el.dataset.k));
+  updateSaveBar();
+}
+function cardHTML(g,mode){
+  const head='<h2><span class="q '+(g.quality==='B'?'b':'')+'">'+g.quality+'級</span>'+g.width+' '+g.type+'<span class="stk">在庫計 '+g.stockSum+'束</span></h2>';
+  const th='<thead><tr><th class="corner">長さ＼等級</th>'+g.grades.map(G=>'<th>'+G+'</th>').join('')+'</tr></thead>';
+  const rows=g.lens.map(L=>{
+    const bd=BUNDLE[L]?(' <small>('+BUNDLE[L]+')</small>'):'';
+    const tds=g.grades.map(G=>{
+      const c=g.cells[L+'|'+G];
+      if(!c) return '<td><div class="cell empty"></div></td>';
+      const s=curStock(g.gi,c), p=curPrice(g.gi,c);
+      const ed=isEdited(g.gi,c)?' edited':'';
+      let cls,main;
+      if(mode==='stock'){ cls='bg-'+stockBucket(s); main=s; }
+      else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
+      else { cls='bg-'+bucket(c.combined); main=ageShort(c.combined); }
+      return '<td><div class="cell '+cls+ed+'" data-gi="'+g.gi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+s+'</span></div></td>';
+    }).join('');
+    return '<tr><th>'+L+bd+'</th>'+tds+'</tr>';
+  }).join('');
+  return '<div class="gcard">'+head+'<table>'+th+'<tbody>'+rows+'</tbody></table></div>';
+}
+function stockBucket(s){ if(s<=0)return 'u'; if(s<5)return 'r'; if(s<12)return 'o'; if(s<25)return 'y'; return 'g'; }
+
+/* ===== ドロワー ===== */
+let cur=null;
+function openDrawer(gi,key){
+  const g=DATA.find(x=>x.gi===gi); const c=g.cells[key];
+  cur={gi,g,c};
+  document.getElementById('dGrp').textContent=g.name;
+  document.getElementById('dTtl').textContent=c.length+'mm（'+BUNDLE[c.length]+'枚束） ／ '+c.grade;
+  const s=curStock(gi,c), p=curPrice(gi,c), bk=bucket(c.combined);
+  const mallHTML=(label,cls,m)=> m ?
+    '<div class="mall"><div class="ml"><span class="dot '+cls+'"></span>'+label+'</div><div class="md"><div class="d">'+(m.days===null?'不明':m.days+'日')+'</div><div class="s">'+(m.date?'最終 '+m.date:'履歴なし')+'</div>'+(m.code?'<div class="code">'+m.code+'</div>':'')+'</div></div>'
+    : '<div class="mall none"><div class="ml"><span class="dot '+cls+'"></span>'+label+'</div><div class="md"><div class="s">出品なし</div></div></div>';
+  const priceBlock = c.priceEditable ?
+      '<div class="edit"><div class="et">💴 価格を編集（税込・円）'+(c.type==='スノコ板'?'<span style="color:var(--sub)">楽天</span>':'<span style="color:var(--sub)">Yahoo</span>')+'</div>'
+    + '<div class="stepper price"><button onclick="bumpPrice(-100)">−</button><input id="prIn" type="number" inputmode="numeric" value="'+p+'"><button onclick="bumpPrice(100)">＋</button></div>'
+    + '<div class="orig">現在の登録: '+yen(c.price)+(p!==c.price?' → <b style="color:var(--accent)">'+yen(p)+'</b>':'')+'</div></div>'
+    : '<div class="edit"><div class="pr-lock">この規格は価格編集の対象外（楽天専用体系などのため）。現在: '+yen(c.price)+'</div></div>';
+  document.getElementById('dBody').innerHTML=
+    '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
+   + mallHTML('Yahoo!','yh',c.yahoo) + mallHTML('楽天','rk',c.rakuten)
+   + '<div class="edit"><div class="et">📦 在庫を編集（束）</div>'
+   + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="numeric" value="'+s+'"><button onclick="bumpStock(1)">＋</button></div>'
+   + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）</div>'
+   + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div></div>'
+   + priceBlock
+   + '<div class="save-row"><button class="btn ghost" onclick="resetCell()">戻す</button><button class="btn primary" onclick="stageCell()">変更を保留に追加</button></div>'
+   + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫は束換算 910/2000=20・3000=10・4000=8枚）。</div>';
+  document.getElementById('scrim').classList.add('show');
+  document.getElementById('drawer').classList.add('show');
+}
+function bumpStock(d){ const i=document.getElementById('stkIn'); i.value=Math.max(0,(+i.value||0)+d); }
+function bumpPrice(d){ const i=document.getElementById('prIn'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
+function resetCell(){ document.getElementById('stkIn').value=cur.c.stock; const pr=document.getElementById('prIn'); if(pr) pr.value=cur.c.price; }
+function stageCell(){
+  const k=ckey(cur.gi,cur.c.length,cur.c.grade);
+  const sv=Math.max(0,+document.getElementById('stkIn').value||0);
+  const prEl=document.getElementById('prIn');
+  const rec={};
+  if(sv!==cur.c.stock) rec.stock=sv;
+  if(prEl){ const pv=Math.max(0,+prEl.value||0); if(pv!==cur.c.price) rec.price=pv; }
+  if(Object.keys(rec).length) edits[k]=rec; else delete edits[k];
+  closeDrawer(); render();
+}
+function closeDrawer(){ document.getElementById('scrim').classList.remove('show'); document.getElementById('drawer').classList.remove('show'); }
+document.getElementById('dX').onclick=closeDrawer;
+document.getElementById('scrim').onclick=closeDrawer;
+
+/* ===== 保存バー ===== */
+function updateSaveBar(){
+  const n=Object.keys(edits).length;
+  document.getElementById('sbN').textContent=n;
+  document.getElementById('saveBar').classList.toggle('show',n>0);
+}
+document.getElementById('sbUndo').onclick=()=>{ edits={}; render(); };
+document.getElementById('sbApply').onclick=applyEdits;
+async function applyEdits(){
+  const keys=Object.keys(edits); if(!keys.length) return;
+  const updates=keys.map(k=>{
+    const [gip,L,G]=k.split('|'); const g=DATA.find(x=>x.gi===+gip);
+    const rec=edits[k];
+    const u={quality:g.quality, group:g.group, typeBase:g.type, length:+L, grade:G};
+    if('stock'in rec) u.stock=rec.stock;
+    if('price'in rec) u.price=rec.price;
+    return u;
+  });
+  if(SOURCE!=='live'){
+    alert('【サンプル】'+keys.length+'件の変更を確認しました。\n本番（ライブ接続）では スプシ更新＋Yahoo/楽天へ反映します。');
+    return;
+  }
+  const btn=document.getElementById('sbApply'); btn.disabled=true; btn.textContent='同期中…';
+  try{
+    // CORSプリフライト回避のため text/plain で送る（GASは postData.contents を読む）
+    const c=creds();
+    const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:c.email,pass:c.pass,updates:updates})});
+    const j=await r.json();
+    if(j.ok){
+      const msg='反映しました：'+j.applied+'件'+((j.errors&&j.errors.length)?('\n注意:\n'+j.errors.join('\n')):'');
+      edits={}; alert(msg); fetchLive();
+    } else { alert('エラー: '+(j.error||'不明')); }
+  }catch(e){ alert('送信失敗: '+e.message); }
+  finally{ btn.disabled=false; btn.textContent='保存して同期'; }
+}
+
+/* ===== ツールバー ===== */
+document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();});
+['sortSel','qSel'].forEach(id=>document.getElementById(id).onchange=render);
+document.getElementById('q').oninput=render;
+document.getElementById('foot').innerHTML='色＝最終販売からの経過（Yahoo・楽天の直近販売基準）。空欄＝該当規格なし／無限在庫。在庫は<b>束</b>表示。計算ロジックはスプシ <code>getUnsoldProds_()</code> と一致。'
+ +' &nbsp;|&nbsp; 在庫＝資産情報のため合言葉で保護。価格はYahoo（スノコ板のみ楽天）に反映、楽天の他SKU価格は体系違いのため遮断。';
+
+boot();
+</script>
+</body>
+</html>
