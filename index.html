@@ -55,6 +55,10 @@
   .tbtn:hover{border-color:var(--accent);color:var(--accent)}
   .tchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;white-space:nowrap}
   .tchk input{margin:0;cursor:pointer;accent-color:var(--accent)}
+  .thide{display:inline-flex;align-items:center;gap:10px;font-size:12px;font-weight:700;color:var(--sub);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;white-space:nowrap}
+  .thide>label{display:inline-flex;align-items:center;gap:4px;cursor:pointer;font-weight:600;color:var(--ink)}
+  .thide input{margin:0;cursor:pointer;accent-color:var(--accent)}
+  .thide>label:has(input:checked){color:var(--accent)}
   .search{position:relative}
   .search input{padding-left:30px;width:170px}
   .search svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);opacity:.5}
@@ -228,7 +232,7 @@
     <option value="A">A級のみ</option>
     <option value="B">B級のみ</option>
   </select>
-  <label class="tchk"><input type="checkbox" id="hide105"> 105幅を隠す</label>
+  <span class="thide">隠す<label><input type="checkbox" id="hide105">105幅</label><label><input type="checkbox" id="hideOrig">オリジナル</label><label><input type="checkbox" id="hideSnoko">スノコ</label></span>
   <div class="search">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
     <input id="q" placeholder="規格を検索…">
@@ -473,9 +477,14 @@ function render(){
   const qf=document.getElementById('qSel').value;
   const kw=document.getElementById('q').value.trim();
   const hide105=document.getElementById('hide105').checked;
+  const hideOrig=document.getElementById('hideOrig').checked;
+  const hideSnoko=document.getElementById('hideSnoko').checked;
   document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':''));
 
-  let groups=DATA.filter(g=>(!qf||g.quality===qf)&&(!kw||g.name.includes(kw))&&!(hide105&&g.width==='105mm幅'));
+  let groups=DATA.filter(g=>(!qf||g.quality===qf)&&(!kw||g.name.includes(kw))
+    &&!(hide105&&g.width==='105mm幅')
+    &&!(hideOrig&&g.width==='オリジナル')
+    &&!(hideSnoko&&g.type==='スノコ板'));
   groups=groups.slice().sort((a,b)=>{
     if(sort==='stock') return b.stockSum-a.stockSum;
     if(sort==='name')  return a.name.localeCompare(b.name,'ja');
@@ -624,8 +633,8 @@ async function applyEdits(){
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();});
 ['sortSel','qSel'].forEach(id=>document.getElementById(id).onchange=render);
 document.getElementById('q').oninput=render;
-// 105幅を隠す（状態は端末に保持）
-(function(){ const el=document.getElementById('hide105'); el.checked=localStorage.getItem('hayazai_hide105')==='1'; el.onchange=()=>{ try{localStorage.setItem('hayazai_hide105',el.checked?'1':'0');}catch(e){} render(); }; })();
+// 隠すチェック（105幅/オリジナル/スノコ・状態は端末に保持）
+(function(){ [['hide105','hayazai_hide105'],['hideOrig','hayazai_hideOrig'],['hideSnoko','hayazai_hideSnoko']].forEach(function(p){ const el=document.getElementById(p[0]); el.checked=localStorage.getItem(p[1])==='1'; el.onchange=()=>{ try{localStorage.setItem(p[1],el.checked?'1':'0');}catch(e){} render(); }; }); })();
 
 /* ===== 在庫チェック表（棚卸し記入用紙）を印刷 ===== */
 document.getElementById('printBtn').onclick=printCountSheet;
