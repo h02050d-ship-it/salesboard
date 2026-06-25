@@ -100,6 +100,65 @@
   .bg-u{background:var(--u);color:var(--u-ink)}
   .stkmode .cell .age{font-size:15px} .stkmode .cell .stk{display:none}
   .prmode .cell .age{font-size:12px} .prmode .cell .stk{display:none}
+  .ordmode .cell .age{font-size:13px}
+
+  /* 発注アラート帯 */
+  .reorder{max-width:1280px;margin:12px auto 0;padding:12px 16px;border-radius:13px;border:1px solid #e0a96d55;background:linear-gradient(100deg,rgba(224,120,60,.14),rgba(224,120,60,.03));box-shadow:var(--shadow)}
+  .reorder.hidden{display:none}
+  .reorder .rh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;font-weight:800;color:var(--o-ink)}
+  .reorder .rh .cnt{font-size:17px}
+  .reorder .rh .ok{color:var(--g-ink)}
+  .reorder .lt{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--sub)}
+  .reorder .lt input{width:50px;text-align:center;padding:5px 6px;font-size:12.5px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);font-family:inherit}
+  .reorder .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
+  .rchip{display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12px;cursor:pointer;white-space:nowrap}
+  .rchip:hover{border-color:var(--accent)}
+  .rchip .d{font-weight:800}
+  .rchip.r{border-color:#a61c0033} .rchip.r .d{color:var(--r-ink)}
+  .rchip.o .d{color:var(--o-ink)}
+  .rchip .sp{color:var(--sub);font-size:10.5px}
+  .reorder .more{margin-top:9px;font-size:11.5px;color:var(--accent);font-weight:700;cursor:pointer;background:none;border:0;font-family:inherit;padding:0}
+
+  /* ランキングモーダル */
+  .rank-modal{position:fixed;inset:0;z-index:42;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;background:rgba(20,15,8,.38)}
+  .rank-modal.show{display:flex}
+  .rank-box{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 20px 60px rgba(40,25,10,.3);width:760px;max-width:100%;overflow:hidden}
+  .rank-box .rkh{padding:15px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .rank-box .rkh h3{font-size:16px;font-weight:800}
+  .rank-box .rkh .x{margin-left:auto;width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--bg);cursor:pointer;font-size:16px;color:var(--sub)}
+  .rkseg{display:inline-flex;background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:3px;gap:2px}
+  .rkseg button{border:0;background:transparent;color:var(--sub);font-size:12px;font-weight:700;padding:6px 11px;border-radius:7px;cursor:pointer;font-family:inherit}
+  .rkseg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .rank-body{padding:8px 12px 16px;max-height:62vh;overflow:auto}
+  .rrow{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:11px;cursor:pointer}
+  .rrow:hover{background:var(--bg)}
+  .rrow .rn{width:22px;text-align:center;font-weight:800;color:var(--sub);font-size:13px}
+  .rrow .ri{flex:1;min-width:0}
+  .rrow .ri .t{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rrow .ri .s{font-size:10.5px;color:var(--sub);margin-top:2px}
+  .rrow .rbar{flex:0 0 110px;height:8px;border-radius:4px;background:var(--bg);overflow:hidden}
+  .rrow .rbar > i{display:block;height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent))}
+  .rrow .rv{flex:0 0 auto;text-align:right;font-weight:800;font-size:13px;min-width:66px}
+  .rrow .rv small{display:block;font-size:9.5px;color:var(--sub);font-weight:600}
+  .rank-note{font-size:11px;color:var(--sub);padding:4px 14px 0;line-height:1.6}
+  .rank-empty{text-align:center;color:var(--sub);padding:40px;font-size:13px}
+
+  /* 売れ行きサマリ＋スパークライン（ドロワー） */
+  .sales-sum{display:flex;gap:8px;margin-top:16px}
+  .sales-sum > div{flex:1;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:9px 4px}
+  .sales-sum .n{font-size:16px;font-weight:800;line-height:1.1}
+  .sales-sum .l{font-size:10px;color:var(--sub);margin-top:3px}
+  .sales-sum .warn .n{color:var(--o-ink)}
+  .sales-sum .crit .n{color:var(--r-ink)}
+  .spark{margin-top:14px;padding:14px 16px;border:1px solid var(--line);border-radius:13px;background:var(--bg)}
+  .spark .et{font-size:12px;font-weight:800;color:var(--sub);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+  .spark .bars{display:flex;align-items:flex-end;gap:3px;height:56px}
+  .spark .bars > div{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%}
+  .spark .bars > div > i{display:block;width:100%;background:linear-gradient(180deg,var(--accent2),var(--accent));border-radius:3px 3px 0 0;min-height:2px}
+  .spark .bars > div.cur > i{background:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+  .spark .bars > div > b{font-size:8px;color:var(--sub);font-weight:700;margin-top:3px;line-height:1}
+  .spark .lbl{display:flex;justify-content:space-between;font-size:9.5px;color:var(--sub);margin-top:6px}
+  .spark-empty{font-size:11.5px;color:var(--sub);text-align:center;padding:6px}
 
   .scrim{position:fixed;inset:0;background:rgba(20,15,8,.38);opacity:0;pointer-events:none;transition:.2s;z-index:40}
   .scrim.show{opacity:1;pointer-events:auto}
@@ -220,6 +279,7 @@
     <span id="srcBadge" class="src-badge">● 読込中…</span>
     <div class="kpis">
       <div class="kpi"><div class="n" id="kSku">–</div><div class="l">規格数</div></div>
+      <div class="kpi warn" id="kpiOrder" title="日販から推定して、リードタイム内に在庫が切れそうな規格の数。クリックで発注モード" style="cursor:pointer"><div class="n" id="kOrder">–</div><div class="l">🚨 発注目安</div></div>
       <div class="kpi warn"><div class="n" id="kStale">–</div><div class="l">滞留(60日〜/不明)</div></div>
       <div class="kpi"><div class="n" id="kStock">–</div><div class="l">在庫合計(束)</div></div>
     </div>
@@ -230,10 +290,13 @@
   <div class="seg" id="modeSeg">
     <button data-mode="age" class="on">🔥 売れ行き</button>
     <button data-mode="stock">📦 在庫数</button>
+    <button data-mode="order">🚨 発注</button>
     <button data-mode="price">💴 価格</button>
   </div>
   <select id="sortSel">
     <option value="stock">並び: 在庫が多い順</option>
+    <option value="order">並び: 在庫切れが近い順</option>
+    <option value="hot">並び: 売れ筋順</option>
     <option value="stale">並び: 滞留が長い順</option>
     <option value="name">並び: 規格名順</option>
   </select>
@@ -247,16 +310,11 @@
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
     <input id="q" placeholder="規格を検索…">
   </div>
+  <button id="rankBtn" class="tbtn" title="売れ筋・死に筋（滞留在庫）ランキング">📊 ランキング</button>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
   <button id="mmBtn" class="tbtn" title="Yahoo出品あり・楽天出品なしの規格を一覧印刷">🛒 楽天未掲載</button>
   <div class="spacer"></div>
-  <div class="legend">
-    <span><i style="background:var(--g)"></i>〜2か月</span>
-    <span><i style="background:var(--y)"></i>2か月〜</span>
-    <span><i style="background:var(--o)"></i>半年〜</span>
-    <span><i style="background:var(--r)"></i>1年〜</span>
-    <span><i style="background:var(--u)"></i>不明</span>
-  </div>
+  <div class="legend" id="legend"></div>
 </div>
 
 <div class="demo-ban" id="demoBan" style="display:none">
@@ -264,8 +322,29 @@
   <div><b>サンプル表示中</b> — 実データに接続できないためデモ表示です。右上のバッジから合言葉を入れ直すと実在庫に接続します。</div>
 </div>
 
+<div class="reorder hidden" id="reorder"></div>
 <div class="grid" id="grid"></div>
 <footer id="foot"></footer>
+
+<!-- ランキング（売れ筋・死に筋）モーダル -->
+<div class="rank-modal" id="rankModal">
+  <div class="rank-box">
+    <div class="rkh">
+      <h3>📊 ランキング</h3>
+      <div class="rkseg" id="rkSeg">
+        <button data-rk="hot" class="on">🔥 売れ筋</button>
+        <button data-rk="dead">🪦 死に筋・滞留</button>
+      </div>
+      <div class="rkseg" id="rkPer">
+        <button data-per="30">30日</button>
+        <button data-per="90" class="on">90日</button>
+      </div>
+      <button class="x" id="rkX">✕</button>
+    </div>
+    <div class="rank-note" id="rkNote"></div>
+    <div class="rank-body" id="rkBody"></div>
+  </div>
+</div>
 
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="drawer">
@@ -297,7 +376,13 @@ const WIDTH2GROUP={'120mm幅':'標準','105mm幅':'幅狭','オリジナル':'�
 function C(length,grade,stock,price,y,r,snoko){
   const yo=y?{days:y[0],date:y[1],code:y[2]}:null, ro=r?{days:r[0],date:r[1],code:r[2]}:null;
   const ds=[yo,ro].filter(x=>x&&x.days!=null).map(x=>x.days);
-  return {length,grade,stock,price,priceEditable:!!yo||!!snoko,combined:ds.length?Math.min.apply(null,ds):null,yahoo:yo,rakuten:ro,coord:''};
+  const combined=ds.length?Math.min.apply(null,ds):null;
+  // ---- デモ用の擬似販売集計（本番は GAS が sold30/sold90/spark/history を同梱）----
+  const bp=BUNDLE[length]||20, vel=Math.max(0,70-((combined==null)?999:combined));
+  const sold30=Math.round(vel/22)*bp, sold90=sold30*2+Math.round(vel/12)*bp;
+  const spark=[]; for(let i=0;i<12;i++){ spark.push(Math.round((vel/26)*((i%3===0?1.4:1)+i/14))*bp); }
+  return {length,grade,stock,price,priceEditable:!!yo||!!snoko,combined:combined,infinite:false,
+          yahoo:yo,rakuten:ro,coord:'',sold30:sold30,sold90:sold90,spark:spark,history:[]};
 }
 const SAMPLE=[
  {quality:'A',group:'標準',width:'120mm幅',type:'フローリング',cells:[
@@ -480,6 +565,35 @@ function curStock(gi,c){ const k=ckey(gi,c.length,c.grade); return (edits[k]&&'s
 function curPrice(gi,c){ const k=ckey(gi,c.length,c.grade); return (edits[k]&&'price'in edits[k])?edits[k].price:c.price; }
 function isEdited(gi,c){ return !!edits[ckey(gi,c.length,c.grade)]; }
 
+/* ===== 発注アラート（日販×在庫で「あと○日」を推定） ===== */
+const LEADTIME_KEY='hayazai_leadtime';
+function getLeadTime(){ const v=+localStorage.getItem(LEADTIME_KEY); return v>0?v:14; }
+function setLeadTime(v){ try{localStorage.setItem(LEADTIME_KEY,String(Math.max(1,Math.round(v))));}catch(e){} }
+// 日販（枚/日）＝直近30日と90日の高い方（売れ始め/季節変動に追従しつつ過小評価を防ぐ）
+function cellDaily(c){ const d30=(+c.sold30||0)/30, d90=(+c.sold90||0)/90; return Math.max(d30,d90); }
+// 残日数：∞=無限在庫 / null=販売実績なし（推定不能） / 数値=あと何日で在庫切れ
+function cellDaysLeft(gi,c){
+  if(c.infinite) return Infinity;
+  const daily=cellDaily(c);
+  if(daily<=0) return null;
+  const stockPieces=(+curStock(gi,c)||0)*(BUNDLE[c.length]||1);
+  return Math.floor(stockPieces/daily);
+}
+function dlBucket(dl,LT){ if(dl===Infinity) return 'g'; if(dl===null) return 'u'; if(dl<=LT) return 'r'; if(dl<=LT*2) return 'o'; if(dl<=LT*4) return 'y'; return 'g'; }
+function dlLabel(dl){ if(dl===Infinity) return '∞'; if(dl===null) return '—'; if(dl<=0) return '切れ'; if(dl>=999) return '999日+'; return dl+'日'; }
+// 全セルを走査して発注リスク行を抽出（並び・チップ・KPI・ランキングで共用）
+function scanCells(){
+  const out=[];
+  DATA.forEach(g=>Object.values(g.cells).forEach(c=>{
+    out.push({g, c, gi:g.gi, key:c.length+'|'+c.grade,
+      dl:cellDaysLeft(g.gi,c), daily:cellDaily(c),
+      sold30:(+c.sold30||0), sold90:(+c.sold90||0),
+      stock:(+curStock(g.gi,c)||0), infinite:!!c.infinite,
+      name:g.name, length:c.length, grade:c.grade});
+  }));
+  return out;
+}
+
 /* ===== 描画 ===== */
 function render(){
   const mode=document.querySelector('#modeSeg .on').dataset.mode;
@@ -489,7 +603,9 @@ function render(){
   const hide105=document.getElementById('hide105').checked;
   const hideOrig=document.getElementById('hideOrig').checked;
   const hideSnoko=document.getElementById('hideSnoko').checked;
-  document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':''));
+  document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':(mode==='order'?' ordmode':'')));
+  const LT=getLeadTime();
+  setLegend(mode,LT);
 
   let groups=DATA.filter(g=>(!qf||g.quality===qf)&&(!kw||g.name.includes(kw))
     &&!(hide105&&g.width==='105mm幅')
@@ -498,15 +614,26 @@ function render(){
   groups=groups.slice().sort((a,b)=>{
     if(sort==='stock') return b.stockSum-a.stockSum;
     if(sort==='name')  return a.name.localeCompare(b.name,'ja');
+    if(sort==='order'){ // 在庫切れが近い順（グループ内の最小残日数）
+      const mn=g=>Math.min.apply(null,Object.values(g.cells).map(c=>{const d=cellDaysLeft(g.gi,c);return (d===null||d===Infinity)?9e9:d;}));
+      return mn(a)-mn(b);
+    }
+    if(sort==='hot'){ // 売れ筋順（グループ内の直近30日合計）
+      const sm=g=>Object.values(g.cells).reduce((s,c)=>s+(+c.sold30||0),0);
+      return sm(b)-sm(a);
+    }
     const mx=g=>Math.max.apply(null,Object.values(g.cells).map(c=>c.combined===null?99999:c.combined));
     return mx(b)-mx(a);
   });
 
-  let sku=0,stale=0,stk=0;
-  groups.forEach(g=>Object.values(g.cells).forEach(c=>{sku++;stk+=(+curStock(g.gi,c)||0);if(c.combined===null||c.combined>=60)stale++;}));
+  let sku=0,stale=0,stk=0,order=0;
+  groups.forEach(g=>Object.values(g.cells).forEach(c=>{sku++;stk+=(+curStock(g.gi,c)||0);if(c.combined===null||c.combined>=60)stale++;const dl=cellDaysLeft(g.gi,c);if(dl!==null&&dl!==Infinity&&dl<=LT)order++;}));
   document.getElementById('kSku').textContent=sku;
   document.getElementById('kStale').textContent=stale;
   document.getElementById('kStock').textContent=stk.toLocaleString();
+  document.getElementById('kOrder').textContent=order;
+  document.getElementById('kpiOrder').classList.toggle('warn',order>0);
+  renderReorder(LT);
 
   // B級を上・A級を下にセクション分け（区分けを明確化）
   const bG=groups.filter(g=>g.quality==='B');
@@ -541,6 +668,7 @@ function cardHTML(g,mode){
       let cls,main;
       if(mode==='stock'){ cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
+      else if(mode==='order'){ const dl=cellDaysLeft(g.gi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); }
       else { cls='bg-'+bucket(c.combined); main=ageShort(c.combined); }
       return '<td><div class="cell '+cls+ed+'" data-gi="'+g.gi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
     }).join('');
@@ -549,6 +677,64 @@ function cardHTML(g,mode){
   return '<div class="gcard">'+head+'<table>'+th+'<tbody>'+rows+'</tbody></table></div>';
 }
 function stockBucket(s){ if(s<=0)return 'u'; if(s<5)return 'r'; if(s<12)return 'o'; if(s<25)return 'y'; return 'g'; }
+// 凡例をモード連動で（色の意味がモードで変わるため）
+function setLegend(mode,LT){
+  const L=(items)=>items.map(x=>'<span><i style="background:var(--'+x[0]+')"></i>'+x[1]+'</span>').join('');
+  let html;
+  if(mode==='order') html=L([['r','〜'+LT+'日(要発注)'],['o','〜'+(LT*2)+'日'],['y','〜'+(LT*4)+'日'],['g','十分/∞'],['u','実績なし']]);
+  else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']]);
+  else html=L([['g','〜2か月'],['y','2か月〜'],['o','半年〜'],['r','1年〜'],['u','不明']]);
+  document.getElementById('legend').innerHTML=html;
+}
+
+/* ===== 発注アラート帯（常時表示・在庫切れ間近を先回り提示） ===== */
+let reorderExpanded=false;
+function renderReorder(LT){
+  const box=document.getElementById('reorder');
+  if(SOURCE!=='live'){ box.classList.add('hidden'); return; }
+  // リスク＝無限・実績なしを除き、残日数 ≤ LT*2 のものを近い順に
+  const risk=scanCells().filter(r=>!r.infinite && r.dl!==null && r.dl!==Infinity && r.dl<=LT*2)
+                        .sort((a,b)=>a.dl-b.dl);
+  const ltCtl='<span class="lt">仕入リードタイム <input id="ltIn" type="number" inputmode="numeric" min="1" value="'+LT+'"> 日</span>';
+  if(!risk.length){
+    box.classList.remove('hidden');
+    box.innerHTML='<div class="rh"><span class="ok">✅ 在庫切れ間近の規格はありません</span>'+ltCtl+'</div>';
+    wireLeadTime(); return;
+  }
+  const urgent=risk.filter(r=>r.dl<=LT).length;
+  const shown=reorderExpanded?risk:risk.slice(0,8);
+  const chips=shown.map(r=>{
+    const b=r.dl<=LT?'r':(r.dl<=LT*2?'o':'');
+    return '<button class="rchip '+b+'" data-gi="'+r.gi+'" data-k="'+r.key+'">'
+      +'<span class="d">'+(r.dl<=0?'在庫切れ':'あと'+r.dl+'日')+'</span>'
+      +'<span>'+r.name.replace(/^[AB]級\s*/,'')+' '+r.length+'/'+r.grade+'</span>'
+      +'<span class="sp">在庫'+r.stock+'束</span></button>';
+  }).join('');
+  const more=risk.length>8?'<button class="more" id="reMore">'+(reorderExpanded?'閉じる':'＋他'+(risk.length-8)+'件を表示')+'</button>':'';
+  box.classList.remove('hidden');
+  box.innerHTML='<div class="rh"><span class="cnt">🚨 '+risk.length+'規格</span>が在庫切れ間近'
+    +(urgent?'（うち<b>'+urgent+'件</b>がリードタイム内＝今すぐ手配）':'')+ltCtl+'</div>'
+    +'<div class="chips">'+chips+'</div>'+more;
+  box.querySelectorAll('.rchip').forEach(el=>el.onclick=()=>openDrawer(+el.dataset.gi,el.dataset.k));
+  const mo=document.getElementById('reMore'); if(mo) mo.onclick=()=>{ reorderExpanded=!reorderExpanded; renderReorder(getLeadTime()); };
+  wireLeadTime();
+}
+function wireLeadTime(){
+  const i=document.getElementById('ltIn'); if(!i) return;
+  i.onchange=()=>{ const v=Math.max(1,Math.round(+i.value||14)); setLeadTime(v); render(); };
+}
+// 月別販売スパークライン（直近12か月・枚）。spark[0]=11か月前 … spark[11]=今月。
+function sparkBlock(spark){
+  if(!spark||!spark.length||!spark.some(v=>v>0))
+    return '<div class="spark"><div class="et">📈 月別販売（直近12か月）</div><div class="spark-empty">この規格の月別販売記録はまだありません</div></div>';
+  const max=Math.max.apply(null,spark)||1, now=new Date();
+  const bars=spark.map((v,i)=>{
+    const d=new Date(now.getFullYear(),now.getMonth()-(11-i),1);
+    const h=v>0?Math.max(6,Math.round(v/max*100)):0;
+    return '<div class="'+(i===11?'cur':'')+'" title="'+d.getFullYear()+'/'+(d.getMonth()+1)+'：'+v+'枚"><i style="height:'+h+'%"></i><b>'+(d.getMonth()+1)+'</b></div>';
+  }).join('');
+  return '<div class="spark"><div class="et">📈 月別販売（直近12か月・枚）<span style="margin-left:auto;color:var(--sub);font-weight:600">数字=月</span></div><div class="bars">'+bars+'</div></div>';
+}
 
 /* ===== ドロワー ===== */
 let cur=null;
@@ -582,10 +768,20 @@ function openDrawer(gi,key){
     + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div></div>';
   // 販売履歴（ボードに同梱済み＝即表示）。「○枚入 × ○セット」表記。
   const fmtSale=(x)=>{ const amt=x.bundle>0?(x.bundle+'枚入 × '+x.sets+'セット'):(x.sets+'セット'+(x.pieces?'（'+x.pieces+'枚）':'')); return '<div class="hist-row"><span class="hist-d">'+x.date+'</span><span class="dot '+(x.platform==='yahoo'?'yh':'rk')+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(x.platform==='rakuten'?'楽天':'-'))+'</span><span class="hist-q">'+amt+'</span></div>'; };
-  const histBlock='<div class="hist"><div class="et">📈 販売履歴（直近5件）</div>'+((c.history&&c.history.length)?c.history.map(fmtSale).join(''):'<div class="hist-empty">販売記録なし</div>')+'</div>';
+  const histBlock='<div class="hist"><div class="et">📋 販売履歴（直近5件）</div>'+((c.history&&c.history.length)?c.history.map(fmtSale).join(''):'<div class="hist-empty">販売記録なし</div>')+'</div>';
+  // 売れ行きサマリ（直近30/90日＋在庫切れ予測）
+  const dl=cellDaysLeft(gi,c), LT=getLeadTime();
+  const dlCls=(dl===null||dl===Infinity)?'':(dl<=LT?'crit':(dl<=LT*2?'warn':''));
+  const dlTxt=c.infinite?'∞':(dl===null?'—':(dl<=0?'切れ':'約'+dl+'日'));
+  const salesBlock='<div class="sales-sum">'
+    +'<div><div class="n">'+(+c.sold30||0)+'</div><div class="l">直近30日(枚)</div></div>'
+    +'<div><div class="n">'+(+c.sold90||0)+'</div><div class="l">直近90日(枚)</div></div>'
+    +'<div class="'+dlCls+'"><div class="n">'+dlTxt+'</div><div class="l">在庫切れまで</div></div></div>';
   document.getElementById('dBody').innerHTML=
     '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
    + mallHTML('Yahoo!','yh',c.yahoo,'yahoo') + mallHTML('楽天','rk',c.rakuten,'rakuten')
+   + salesBlock
+   + sparkBlock(c.spark)
    + histBlock
    + stockBlock
    + priceBlock
@@ -653,6 +849,51 @@ document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{document.
 document.getElementById('q').oninput=render;
 // 隠すチェック（105幅/オリジナル/スノコ・状態は端末に保持）
 (function(){ [['hide105','hayazai_hide105'],['hideOrig','hayazai_hideOrig'],['hideSnoko','hayazai_hideSnoko']].forEach(function(p){ const el=document.getElementById(p[0]); el.checked=localStorage.getItem(p[1])==='1'; el.onchange=()=>{ try{localStorage.setItem(p[1],el.checked?'1':'0');}catch(e){} render(); }; }); })();
+
+/* ===== ランキング（売れ筋・死に筋／滞留） ===== */
+let rankState={metric:'hot', per:90};
+function openRank(){ document.getElementById('rankModal').classList.add('show'); renderRank(); }
+function closeRank(){ document.getElementById('rankModal').classList.remove('show'); }
+function renderRank(){
+  const body=document.getElementById('rkBody'), note=document.getElementById('rkNote');
+  if(SOURCE!=='live'){ body.innerHTML='<div class="rank-empty">ログインして実在庫に接続するとランキングを表示します。</div>'; note.textContent=''; return; }
+  const per=rankState.per, sel=per===30?'sold30':'sold90';
+  const cells=scanCells();
+  let rows;
+  if(rankState.metric==='hot'){
+    rows=cells.filter(r=>r[sel]>0).sort((a,b)=>b[sel]-a[sel]).slice(0,25);
+    note.textContent='直近'+per+'日でよく売れた規格 TOP'+rows.length+'（販売枚数）。仕入れ・欠品防止の優先度づけに。';
+  } else {
+    rows=cells.filter(r=>!r.infinite && r.stock>0 && r[sel]===0).sort((a,b)=>b.stock-a.stock).slice(0,25);
+    note.textContent='在庫があるのに直近'+per+'日まったく売れていない規格（滞留＝資金が寝ている）。在庫が多い順。値下げ・セット化・出品見直しの候補。';
+  }
+  if(!rows.length){ body.innerHTML='<div class="rank-empty">該当する規格はありません 🎉</div>'; return; }
+  const maxV=rankState.metric==='hot'?(rows[0][sel]||1):(rows[0].stock||1);
+  body.innerHTML=rows.map((r,i)=>{
+    const val=rankState.metric==='hot'?r[sel]:r.stock;
+    const unit=rankState.metric==='hot'?'枚':'束';
+    const sub=rankState.metric==='hot'
+      ? '在庫'+r.stock+'束 ・ '+(r.dl===Infinity?'在庫∞':(r.dl===null?'残日数—':'あと'+r.dl+'日'))
+      : '最終販売 '+(r.c.combined===null?'記録なし':ageShort(r.c.combined)+'前')+' ・ 直近'+per+'日 0枚';
+    const w=Math.max(3,Math.round(val/maxV*100));
+    return '<div class="rrow" data-gi="'+r.gi+'" data-k="'+r.key+'"><div class="rn">'+(i+1)+'</div>'
+      +'<div class="ri"><div class="t">'+r.name+'　'+r.length+'/'+r.grade+'</div><div class="s">'+sub+'</div></div>'
+      +'<div class="rbar"><i style="width:'+w+'%"></i></div>'
+      +'<div class="rv">'+val.toLocaleString()+'<small>'+unit+'</small></div></div>';
+  }).join('');
+  body.querySelectorAll('.rrow').forEach(el=>el.onclick=()=>{ closeRank(); openDrawer(+el.dataset.gi,el.dataset.k); });
+}
+document.getElementById('rankBtn').onclick=openRank;
+document.getElementById('rkX').onclick=closeRank;
+document.getElementById('rankModal').onclick=(e)=>{ if(e.target.id==='rankModal') closeRank(); };
+document.querySelectorAll('#rkSeg button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('#rkSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); rankState.metric=b.dataset.rk; renderRank(); });
+document.querySelectorAll('#rkPer button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('#rkPer button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); rankState.per=+b.dataset.per; renderRank(); });
+document.getElementById('kpiOrder').onclick=()=>{
+  document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.remove('on'));
+  document.querySelector('#modeSeg button[data-mode="order"]').classList.add('on');
+  document.getElementById('sortSel').value='order'; render(); window.scrollTo({top:0,behavior:'smooth'});
+};
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeDrawer(); } });
 
 /* ===== 在庫チェック表（棚卸し記入用紙）を印刷 ===== */
 document.getElementById('printBtn').onclick=printCountSheet;
