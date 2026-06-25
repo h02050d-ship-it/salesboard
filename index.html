@@ -800,6 +800,31 @@ function openDrawer(gi,key){
    + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫は束換算 910/2000=20・3000=10・4000=8枚）。</div>';
   document.getElementById('scrim').classList.add('show');
   document.getElementById('drawer').classList.add('show');
+  // 楽天価格はスプシD列が更新されない＝古いので、開いた瞬間に実価格をライブ取得して差し替える
+  if(SOURCE==='live' && c.rakuten && c.rakuten.code) loadLiveRakutenPrice(gi,c,c.rakuten.code);
+}
+async function loadLiveRakutenPrice(gi,c,code){
+  const inp=document.getElementById('prInR'); if(!inp) return;
+  const origEl=inp.closest('.edit').querySelector('.orig');
+  const sheetPrice=c.rakuten?(+c.rakuten.price||0):0;
+  if(origEl) origEl.innerHTML='現在の登録: '+yen(sheetPrice)+' <span class="spin sm"></span><span style="color:var(--sub)">楽天の実価格を取得中…</span>';
+  try{
+    const r=await fetch(GAS_URL+'?api=rkprice&code='+encodeURIComponent(code)+'&'+authQS());
+    const j=await r.json();
+    if(!cur||cur.c!==c||!document.getElementById('prInR')) return;   // 閉じた/別セルに移った
+    if(j&&j.ok&&j.price>0){
+      const live=Math.round(j.price);
+      c.rakuten.price=live;                          // 編集・差分の基準を実価格に
+      const k=ckey(gi,c.length,c.grade);
+      if(!(edits[k]&&'priceR'in edits[k])) inp.value=live;          // 未編集ならフィールドも実価格へ
+      if(origEl) origEl.innerHTML='現在の登録: <b style="color:var(--accent)">'+yen(live)+'</b> <span style="color:#1a7f37;font-weight:700">✓ 楽天の実価格（基本オプション）</span>'
+        +(live!==sheetPrice?' <span style="color:var(--sub)">／スプシの古い値 '+yen(sheetPrice)+' を更新</span>':'');
+    } else {
+      if(origEl) origEl.innerHTML='現在の登録: '+yen(sheetPrice)+' <span style="color:var(--o-ink);font-weight:700">⚠ 実価格を取得できず（ItemAPI権限未許諾の可能性）</span>';
+    }
+  }catch(e){
+    if(origEl) origEl.innerHTML='現在の登録: '+yen(sheetPrice)+' <span style="color:var(--o-ink);font-weight:700">⚠ 実価格の取得に失敗</span>';
+  }
 }
 function bumpStock(d){ const i=document.getElementById('stkIn'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
 function bumpPriceY(d){ const i=document.getElementById('prInY'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
