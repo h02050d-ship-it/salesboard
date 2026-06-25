@@ -879,7 +879,10 @@ async function applyEdits(){
     const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:c.email,pass:c.pass,updates:updates})});
     const j=await r.json();
     if(j.ok){
-      const msg='反映しました：'+j.applied+'件'+((j.errors&&j.errors.length)?('\n注意:\n'+j.errors.join('\n')):'');
+      const fail=(j.errors&&j.errors.length)||0;
+      let msg=(j.applied>0)?('✅ 反映しました：'+j.applied+'件'):'反映できた項目はありませんでした';
+      if(fail) msg+='\n\n⚠️ 失敗 '+fail+'件:\n'+j.errors.join('\n')
+        +(j.errors.join(' ').indexOf('401')>=0?'\n\n※楽天は商品更新(ItemAPI)権限が未許諾のため反映できません。RMSで権限追加が必要です。':'');
       edits={}; alert(msg); fetchLive();
     } else { alert('エラー: '+(j.error||'不明')); }
   }catch(e){ alert('送信失敗: '+e.message); }
