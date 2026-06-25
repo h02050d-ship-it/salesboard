@@ -580,34 +580,19 @@ function openDrawer(gi,key){
     + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="numeric" value="'+s+'"><button onclick="bumpStock(1)">＋</button></div>'
     + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）</div>'
     + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div></div>';
+  // 販売履歴（ボードに同梱済み＝即表示）。「○枚入 × ○セット」表記。
+  const fmtSale=(x)=>{ const amt=x.bundle>0?(x.bundle+'枚入 × '+x.sets+'セット'):(x.sets+'セット'+(x.pieces?'（'+x.pieces+'枚）':'')); return '<div class="hist-row"><span class="hist-d">'+x.date+'</span><span class="dot '+(x.platform==='yahoo'?'yh':'rk')+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(x.platform==='rakuten'?'楽天':'-'))+'</span><span class="hist-q">'+amt+'</span></div>'; };
+  const histBlock='<div class="hist"><div class="et">📈 販売履歴（直近5件）</div>'+((c.history&&c.history.length)?c.history.map(fmtSale).join(''):'<div class="hist-empty">販売記録なし</div>')+'</div>';
   document.getElementById('dBody').innerHTML=
     '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
    + mallHTML('Yahoo!','yh',c.yahoo,'yahoo') + mallHTML('楽天','rk',c.rakuten,'rakuten')
-   + '<div class="hist"><div class="et">📈 販売履歴（新しい順・どれだけ売れたか）</div><div id="histBox"><div class="hist-empty"><span class="spin sm"></span>読み込み中…</div></div></div>'
+   + histBlock
    + stockBlock
    + priceBlock
    + '<div class="save-row"><button class="btn ghost" onclick="resetCell()">戻す</button><button class="btn primary" onclick="stageCell()">変更を保留に追加</button></div>'
    + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫は束換算 910/2000=20・3000=10・4000=8枚）。</div>';
   document.getElementById('scrim').classList.add('show');
   document.getElementById('drawer').classList.add('show');
-  // 販売履歴を裏で取得（カードは即表示）。ライブ接続時のみ。
-  if(SOURCE==='live'){ loadHistory([c.yahoo&&c.yahoo.code, c.rakuten&&c.rakuten.code].filter(Boolean)); }
-  else { const hb=document.getElementById('histBox'); if(hb) hb.innerHTML='<div class="hist-empty">サンプル表示中（履歴はログイン時に表示）</div>'; }
-}
-async function loadHistory(codes){
-  const box=document.getElementById('histBox'); if(!box) return;
-  if(!codes.length){ box.innerHTML='<div class="hist-empty">出品コードなし</div>'; return; }
-  try{
-    const r=await fetch(GAS_URL+'?api=history&'+authQS()+'&codes='+encodeURIComponent(codes.join(',')));
-    const t=await r.text();
-    if(!t || t.trim().charAt(0)!=='{') throw new Error('一時応答');
-    const h=(JSON.parse(t).history)||[];
-    if(!box.isConnected) return;
-    if(!h.length){ box.innerHTML='<div class="hist-empty">売上ログ期間内（2026/6/11〜）の販売はありません。<br>それ以前の最終販売は上の各モール欄をご覧ください。</div>'; return; }
-    box.innerHTML=h.map(x=>'<div class="hist-row"><span class="hist-d">'+x.date+'</span>'
-      +'<span class="dot '+(x.platform==='yahoo'?'yh':'rk')+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(x.platform==='rakuten'?'楽天':'-'))+'</span>'
-      +'<span class="hist-q">'+x.qty+'件'+(x.pieces?' <small>'+x.pieces+'枚</small>':'')+'</span></div>').join('');
-  }catch(e){ box.innerHTML='<div class="hist-empty">読み込みに失敗しました（もう一度開いてください）</div>'; }
 }
 function bumpStock(d){ const i=document.getElementById('stkIn'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
 function bumpPrice(d){ const i=document.getElementById('prIn'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
