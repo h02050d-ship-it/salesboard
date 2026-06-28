@@ -373,7 +373,8 @@
     <div class="rkh">
       <h3>📋 付売・市売 価格表</h3>
       <span id="wsPeriod" style="font-size:12px;color:var(--sub);font-weight:700"></span>
-      <button class="x" id="wsX" style="margin-left:auto">✕</button>
+      <a id="wsSheetBtn" class="tbtn" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;display:none">📝 スプレッドシートで開く ↗</a>
+      <button class="x" id="wsX">✕</button>
     </div>
     <div class="rank-body" id="wsBody"></div>
   </div>
@@ -1018,6 +1019,8 @@ function renderWholesale(){
   if(SOURCE!=='live' && !WHOLESALE){ body.innerHTML='<div class="rank-empty">ログインして実データに接続すると表示します。</div>'; return; }
   if(!WHOLESALE){ body.innerHTML='<div class="rank-empty">読み込み中…</div>'; return; }
   per.textContent=WHOLESALE.period||'';
+  const sb=document.getElementById('wsSheetBtn');
+  if(WHOLESALE.sheetUrl){ sb.href=WHOLESALE.sheetUrl; sb.style.display=''; } else { sb.style.display='none'; }
   let html='';
   (WHOLESALE.tables||[]).forEach(t=>{
     const cls=(t.label==='付売')?'fu':'shi';
