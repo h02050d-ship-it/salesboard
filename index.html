@@ -143,6 +143,26 @@
   .rank-note{font-size:11px;color:var(--sub);padding:4px 14px 0;line-height:1.6}
   .rank-empty{text-align:center;color:var(--sub);padding:40px;font-size:13px}
 
+  /* 付売・市売 価格表 */
+  .ws-sec{margin:6px 0 16px}
+  .ws-sec h4{font-size:13.5px;font-weight:800;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+  .ws-sec h4 .tag{font-size:10px;font-weight:800;color:#fff;padding:2px 8px;border-radius:6px}
+  .ws-sec h4 .tag.fu{background:var(--accent)} .ws-sec h4 .tag.shi{background:var(--accent2)}
+  table.ws{width:100%;border-collapse:collapse;font-size:12px}
+  table.ws th,table.ws td{border:1px solid var(--line);padding:6px 8px;text-align:right;white-space:nowrap}
+  table.ws th{background:var(--bg);color:var(--sub);font-weight:700;text-align:center;font-size:11px}
+  table.ws td.sp{text-align:left;font-weight:700}
+  table.ws td.na{color:var(--sub);opacity:.5}
+  .ws-notes{font-size:11px;color:var(--sub);line-height:1.7;margin-top:6px;padding:8px 10px;background:var(--bg);border-radius:9px}
+  .ws-draw{margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:13px;background:var(--bg)}
+  .ws-draw .et{font-size:12px;font-weight:800;color:var(--sub);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .ws-draw .row{display:flex;gap:10px}
+  .ws-draw .row > div{flex:1;text-align:center;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 4px}
+  .ws-draw .row .n{font-size:15px;font-weight:800}
+  .ws-draw .row .l{font-size:10px;color:var(--sub);margin-top:2px}
+  .ws-draw .note{font-size:10px;color:var(--sub);margin-top:8px;line-height:1.5}
+  .ws-draw .none{font-size:11.5px;color:var(--sub);text-align:center;padding:4px}
+
   /* 売れ行きサマリ＋スパークライン（ドロワー） */
   .sales-sum{display:flex;gap:8px;margin-top:16px}
   .sales-sum > div{flex:1;text-align:center;background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:9px 4px}
@@ -311,6 +331,7 @@
     <input id="q" placeholder="規格を検索…">
   </div>
   <button id="rankBtn" class="tbtn" title="売れ筋・死に筋（滞留在庫）ランキング">📊 ランキング</button>
+  <button id="wsBtn" class="tbtn" title="付売・市売（卸）価格表">📋 付売・市売</button>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
   <button id="mmBtn" class="tbtn" title="Yahoo出品あり・楽天出品なしの規格を一覧印刷">🛒 楽天未掲載</button>
   <div class="spacer"></div>
@@ -343,6 +364,18 @@
     </div>
     <div class="rank-note" id="rkNote"></div>
     <div class="rank-body" id="rkBody"></div>
+  </div>
+</div>
+
+<!-- 付売・市売 価格表モーダル -->
+<div class="rank-modal" id="wsModal">
+  <div class="rank-box">
+    <div class="rkh">
+      <h3>📋 付売・市売 価格表</h3>
+      <span id="wsPeriod" style="font-size:12px;color:var(--sub);font-weight:700"></span>
+      <button class="x" id="wsX" style="margin-left:auto">✕</button>
+    </div>
+    <div class="rank-body" id="wsBody"></div>
   </div>
 </div>
 
@@ -517,6 +550,7 @@ function applyData(j,fromCache){
   document.getElementById('demoBan').style.display='none';
   document.getElementById('subline').textContent='更新 '+(j.updated||'—')+'　履歴最古 '+(j.horizon||'—');
   render();
+  ensureWholesale();   // 付売・市売を裏で先読み（モーダル/ドロワーで即表示）
 }
 // バッジ表示（表示データがある時だけ「更新中…/ライブ」を出す）
 function setRefreshing(on){
@@ -796,12 +830,15 @@ function openDrawer(gi,key){
    + histBlock
    + stockBlock
    + priceBlock
+   + '<div id="wsDrawSlot"></div>'
    + '<div class="save-row"><button class="btn ghost" onclick="resetCell()">戻す</button><button class="btn primary" onclick="stageCell()">変更を保留に追加</button></div>'
    + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫は束換算 910/2000=20・3000=10・4000=8枚）。</div>';
   document.getElementById('scrim').classList.add('show');
   document.getElementById('drawer').classList.add('show');
   // 楽天価格はスプシD列が更新されない＝古いので、開いた瞬間に実価格をライブ取得して差し替える
   if(SOURCE==='live' && c.rakuten && c.rakuten.code) loadLiveRakutenPrice(gi,c,c.rakuten.code);
+  // 卸価格（付売・市売）を該当規格に表示（未ロードなら取得後に挿入）
+  fillWsSlot(); ensureWholesale().then(fillWsSlot);
 }
 async function loadLiveRakutenPrice(gi,c,code){
   const inp=document.getElementById('prInR'); if(!inp) return;
@@ -939,7 +976,76 @@ document.getElementById('kpiOrder').onclick=()=>{
   document.querySelector('#modeSeg button[data-mode="order"]').classList.add('on');
   document.getElementById('sortSel').value='order'; render(); window.scrollTo({top:0,behavior:'smooth'});
 };
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeDrawer(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeDrawer(); } });
+
+/* ===== 付売・市売（卸）価格 ===== */
+let WHOLESALE=null;   // {period, tables:[{label,grades,rows,notes}]}
+let WS_MAP=null;      // 'type|length|grade' -> {fu, shi}
+const WS_CACHE='hayazai_ws_cache';
+function normWsType(name){ return String(name||'').replace(/桧/g,'').trim(); }   // 桧フローリング→フローリング
+function buildWsMap(ws){
+  const map={};
+  (ws.tables||[]).forEach(t=>{
+    const key=(t.label==='付売')?'fu':(t.label==='市売'?'shi':null); if(!key) return;
+    (t.rows||[]).forEach(r=>{
+      const type=normWsType(r.name);
+      (t.grades||[]).forEach((g,i)=>{
+        const p=r.prices[i]; if(p==null) return;
+        const k=type+'|'+r.length+'|'+g;
+        const cur=map[k]||(map[k]={});
+        if(cur[key]==null) cur[key]=p;   // 同価格の重複行は最初を採用
+      });
+    });
+  });
+  return map;
+}
+async function ensureWholesale(){
+  if(!WHOLESALE){ try{ const s=localStorage.getItem(WS_CACHE); if(s){ WHOLESALE=JSON.parse(s); WS_MAP=buildWsMap(WHOLESALE);} }catch(e){} }
+  if(SOURCE==='live'){
+    try{
+      const r=await fetch(GAS_URL+'?api=wholesale&'+authQS());
+      const j=await r.json();
+      if(j&&j.ok&&j.tables){ WHOLESALE=j; WS_MAP=buildWsMap(j); try{localStorage.setItem(WS_CACHE,JSON.stringify(j));}catch(e){} }
+    }catch(e){}
+  }
+  return WHOLESALE;
+}
+function wsLookup(typeBase,length,grade){ return WS_MAP?(WS_MAP[typeBase+'|'+length+'|'+grade]||null):null; }
+function openWholesale(){ document.getElementById('wsModal').classList.add('show'); renderWholesale(); ensureWholesale().then(renderWholesale); }
+function closeWholesale(){ document.getElementById('wsModal').classList.remove('show'); }
+function renderWholesale(){
+  const body=document.getElementById('wsBody'), per=document.getElementById('wsPeriod');
+  if(SOURCE!=='live' && !WHOLESALE){ body.innerHTML='<div class="rank-empty">ログインして実データに接続すると表示します。</div>'; return; }
+  if(!WHOLESALE){ body.innerHTML='<div class="rank-empty">読み込み中…</div>'; return; }
+  per.textContent=WHOLESALE.period||'';
+  let html='';
+  (WHOLESALE.tables||[]).forEach(t=>{
+    const cls=(t.label==='付売')?'fu':'shi';
+    html+='<div class="ws-sec"><h4><span class="tag '+cls+'">'+t.label+'</span>（税抜・1束単価）</h4>';
+    if(t.error){ html+='<div class="rank-empty">取得失敗</div></div>'; return; }
+    html+='<table class="ws"><thead><tr><th style="text-align:left">規格＼等級</th>'+(t.grades||[]).map(g=>'<th>'+g+'</th>').join('')+'</tr></thead><tbody>';
+    (t.rows||[]).forEach(r=>{
+      const lbl=normWsType(r.name)+(r.thick?' <small style="color:var(--sub)">'+r.thick+'mm</small>':'')+' '+r.length;
+      html+='<tr><td class="sp">'+lbl+'</td>'+r.prices.map(p=>p==null?'<td class="na">—</td>':'<td>'+yen(p)+'</td>').join('')+'</tr>';
+    });
+    html+='</tbody></table>';
+    if(t.notes&&t.notes.length) html+='<div class="ws-notes">'+t.notes.join('<br>')+'</div>';
+    html+='</div>';
+  });
+  body.innerHTML=html||'<div class="rank-empty">データなし</div>';
+}
+function fillWsSlot(){
+  const slot=document.getElementById('wsDrawSlot'); if(!slot||!cur) return;
+  const ws=wsLookup(cur.g.type,cur.c.length,cur.c.grade);
+  if(!ws){ slot.innerHTML=''; return; }
+  slot.innerHTML='<div class="ws-draw"><div class="et">📋 卸価格（'+((WHOLESALE&&WHOLESALE.period)||'')+'）</div><div class="row">'
+    +'<div><div class="n">'+(ws.fu!=null?yen(ws.fu):'—')+'</div><div class="l">付売</div></div>'
+    +'<div><div class="n">'+(ws.shi!=null?yen(ws.shi):'—')+'</div><div class="l">市売</div></div></div>'
+    +'<div class="note">※税抜・1束単価（2m/4m=8入, 3m=10入）。モールの束（2m=20枚等）とは入数が違います。</div></div>';
+}
+document.getElementById('wsBtn').onclick=openWholesale;
+document.getElementById('wsX').onclick=closeWholesale;
+document.getElementById('wsModal').onclick=(e)=>{ if(e.target.id==='wsModal') closeWholesale(); };
 
 /* ===== 在庫チェック表（棚卸し記入用紙）を印刷 ===== */
 document.getElementById('printBtn').onclick=printCountSheet;
