@@ -332,6 +332,7 @@
   </div>
   <button id="rankBtn" class="tbtn" title="売れ筋・死に筋（滞留在庫）ランキング">📊 ランキング</button>
   <button id="wsBtn" class="tbtn" title="付売・市売（卸）価格表">📋 付売・市売</button>
+  <a id="sheetBtn" class="tbtn" target="_blank" rel="noopener" title="連動している在庫スプレッドシートを開く" style="text-decoration:none;display:none">📊 スプシ ↗</a>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
   <button id="mmBtn" class="tbtn" title="Yahoo出品あり・楽天出品なしの規格を一覧印刷">🛒 楽天未掲載</button>
   <div class="spacer"></div>
@@ -546,6 +547,7 @@ function applyData(j,fromCache){
   DATA=normalizeGroups(j.groups);
   MALLBASE.yahoo=j.yahooBase||''; MALLBASE.rakuten=j.rakutenBase||'';
   COUNTSHEET=j.countsheet||[];
+  const sb=document.getElementById('sheetBtn'); if(sb&&j.sheetUrl){ sb.href=j.sheetUrl; sb.style.display=''; }
   SOURCE='live';
   document.getElementById('gate').style.display='none';
   document.getElementById('demoBan').style.display='none';
@@ -569,7 +571,7 @@ function startAutoRefresh(){
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && canBackgroundRefresh()) fetchLive({silent:true}); });
 function saveCache(j){
-  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon})); }catch(e){}
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon,sheetUrl:j.sheetUrl})); }catch(e){}
 }
 function loadCache(){ try{ const s=localStorage.getItem(CACHE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function gridError(msg){
