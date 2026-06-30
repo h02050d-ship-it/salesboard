@@ -831,6 +831,7 @@ function openDrawer(gi,key){
    + histBlock
    + stockBlock
    + priceBlock
+   + '<div id="ptDrawSlot"></div>'
    + '<div id="wsDrawSlot"></div>'
    + '<div class="save-row"><button class="btn ghost" onclick="resetCell()">戻す</button><button class="btn primary" onclick="stageCell()">変更を保留に追加</button></div>'
    + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫は束換算 910/2000=20・3000=10・4000=8枚）。</div>';
@@ -838,8 +839,44 @@ function openDrawer(gi,key){
   document.getElementById('drawer').classList.add('show');
   // 楽天価格はスプシD列が更新されない＝古いので、開いた瞬間に実価格をライブ取得して差し替える
   if(SOURCE==='live' && c.rakuten && c.rakuten.code) loadLiveRakutenPrice(gi,c,c.rakuten.code);
+  // ポイント倍率（楽天=ライブ取得して編集可／Yahoo=手動案内）
+  if(SOURCE==='live' && c.rakuten && c.rakuten.code) loadLiveRakutenPoint(gi,c,c.rakuten.code);
+  else renderPointSlot(c, (c.rakutenPoint!=null?c.rakutenPoint:1), c.rakuten?'ok':'none');
   // 卸価格（付売・市売）を該当規格に表示（未ロードなら取得後に挿入）
   fillWsSlot(); ensureWholesale().then(fillWsSlot);
+}
+function bumpPoint(d){ const i=document.getElementById('ptInR'); if(i) i.value=Math.max(1,Math.min(20,(+i.value||1)+d)); }
+function renderPointSlot(c, rate, state){
+  const slot=document.getElementById('ptDrawSlot'); if(!slot||!cur) return;
+  let html='';
+  if(c.rakuten){
+    if(state==='loading'){
+      html+='<div class="edit"><div class="et"><span class="dot rk" style="width:9px;height:9px;border-radius:50%;display:inline-block"></span> 楽天ポイント倍率</div><div class="pr-lock"><span class="spin sm"></span>現在の倍率を取得中…</div></div>';
+    } else if(state==='fail'){
+      html+='<div class="edit"><div class="et">⭐ 楽天ポイント倍率</div><div class="pr-lock">⚠ 現在の倍率を取得できませんでした（権限/通信）。</div></div>';
+    } else {
+      const k=ckey(cur.gi,c.length,c.grade);
+      const edited=(edits[k]&&'pointR'in edits[k])?edits[k].pointR:rate;
+      html+='<div class="edit"><div class="et"><span class="dot rk" style="width:9px;height:9px;border-radius:50%;display:inline-block"></span> 楽天ポイント倍率を編集</div>'
+        +'<div class="stepper price"><button onclick="bumpPoint(-1)">−</button><input id="ptInR" type="number" inputmode="numeric" min="1" max="20" value="'+edited+'"><button onclick="bumpPoint(1)">＋</button></div>'
+        +'<div class="unit">倍（1〜20。1=変倍なし）</div>'
+        +'<div class="orig">現在: '+rate+'倍'+(edited!==rate?' → <b style="color:var(--accent)">'+edited+'倍</b>':'')+'</div></div>';
+    }
+  }
+  if(c.yahoo){
+    html+='<div class="edit"><div class="pr-lock">⭐ Yahooのポイント倍率は<b>ストアクリエイターProで手動設定</b>（API非対応のためボードからは変更できません）。</div></div>';
+  }
+  slot.innerHTML=html;
+}
+async function loadLiveRakutenPoint(gi,c,code){
+  renderPointSlot(c, null, 'loading');
+  try{
+    const r=await fetch(GAS_URL+'?api=rkpoint&code='+encodeURIComponent(code)+'&'+authQS());
+    const j=await r.json();
+    if(!cur||cur.c!==c||!document.getElementById('ptDrawSlot')) return;
+    if(j&&j.ok&&j.rate){ c.rakutenPoint=Math.round(j.rate); renderPointSlot(c, c.rakutenPoint, 'ok'); }
+    else renderPointSlot(c, null, 'fail');
+  }catch(e){ if(cur&&cur.c===c) renderPointSlot(c, null, 'fail'); }
 }
 async function loadLiveRakutenPrice(gi,c,code){
   const inp=document.getElementById('prInR'); if(!inp) return;
@@ -871,15 +908,17 @@ function resetCell(){
   const st=document.getElementById('stkIn'); if(st) st.value=cur.c.stock;
   const py=document.getElementById('prInY'); if(py) py.value=cur.c.yahoo?(+cur.c.yahoo.price||0):0;
   const pr=document.getElementById('prInR'); if(pr) pr.value=cur.c.rakuten?(+cur.c.rakuten.price||0):0;
+  const pt=document.getElementById('ptInR'); if(pt) pt.value=(cur.c.rakutenPoint!=null?cur.c.rakutenPoint:1);
 }
 function stageCell(){
   const k=ckey(cur.gi,cur.c.length,cur.c.grade);
   const stEl=document.getElementById('stkIn');   // 無限在庫セルには入力欄が無い
-  const pyEl=document.getElementById('prInY'), prEl=document.getElementById('prInR');
+  const pyEl=document.getElementById('prInY'), prEl=document.getElementById('prInR'), ptEl=document.getElementById('ptInR');
   const rec={};
   if(stEl){ const sv=Math.max(0,+stEl.value||0); if(sv!==cur.c.stock) rec.stock=sv; }
   if(pyEl){ const base=cur.c.yahoo?(+cur.c.yahoo.price||0):0; const v=Math.max(0,+pyEl.value||0); if(v!==base) rec.priceY=v; }
   if(prEl){ const base=cur.c.rakuten?(+cur.c.rakuten.price||0):0; const v=Math.max(0,+prEl.value||0); if(v!==base) rec.priceR=v; }
+  if(ptEl){ const base=(cur.c.rakutenPoint!=null)?cur.c.rakutenPoint:1; const v=Math.max(1,Math.min(20,+ptEl.value||1)); if(v!==base) rec.pointR=v; }
   if(Object.keys(rec).length) edits[k]=rec; else delete edits[k];
   closeDrawer(); render();
 }
@@ -904,6 +943,7 @@ async function applyEdits(){
     if('stock'in rec) u.stock=rec.stock;
     if('priceY'in rec) u.priceYahoo=rec.priceY;
     if('priceR'in rec) u.priceRakuten=rec.priceR;
+    if('pointR'in rec) u.pointRakuten=rec.pointR;
     return u;
   });
   if(SOURCE!=='live'){
