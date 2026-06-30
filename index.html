@@ -101,6 +101,7 @@
   .stkmode .cell .age{font-size:15px} .stkmode .cell .stk{display:none}
   .prmode .cell .age{font-size:12px} .prmode .cell .stk{display:none}
   .ordmode .cell .age{font-size:13px}
+  .ptmode .cell .age{font-size:15px} .ptmode .cell .stk{display:none}
 
   /* 発注アラート帯 */
   .reorder{max-width:1280px;margin:12px auto 0;padding:12px 16px;border-radius:13px;border:1px solid #e0a96d55;background:linear-gradient(100deg,rgba(224,120,60,.14),rgba(224,120,60,.03));box-shadow:var(--shadow)}
@@ -312,6 +313,7 @@
     <button data-mode="stock">📦 在庫数</button>
     <button data-mode="order">🚨 発注</button>
     <button data-mode="price">💴 価格</button>
+    <button data-mode="point">⭐ ポイント</button>
   </div>
   <select id="sortSel">
     <option value="stock">並び: 在庫が多い順</option>
@@ -645,9 +647,11 @@ function render(){
   const hide105=document.getElementById('hide105').checked;
   const hideOrig=document.getElementById('hideOrig').checked;
   const hideSnoko=document.getElementById('hideSnoko').checked;
-  document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':(mode==='order'?' ordmode':'')));
+  document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':(mode==='order'?' ordmode':(mode==='point'?' ptmode':''))));
   const LT=getLeadTime();
   setLegend(mode,LT);
+  // ポイントモード初回は楽天の全倍率を一括取得してから再描画
+  if(mode==='point' && SOURCE==='live' && !RK_POINTS){ ensureRkPoints().then(()=>{ if(document.querySelector('#modeSeg .on').dataset.mode==='point') render(); }); }
 
   let groups=DATA.filter(g=>(!qf||g.quality===qf)&&(!kw||g.name.includes(kw))
     &&!(hide105&&g.width==='105mm幅')
@@ -711,6 +715,7 @@ function cardHTML(g,mode){
       if(mode==='stock'){ cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
       else if(mode==='order'){ const dl=cellDaysLeft(g.gi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); }
+      else if(mode==='point'){ if(!c.rakuten){ cls='bg-u'; main='—'; } else { const rt=rkPointFor(c); main=(rt==null?'…':rt+'倍'); cls=(rt!=null&&rt>1)?'bg-g':'bg-u'; } }
       else { cls='bg-'+bucket(c.combined); main=ageShort(c.combined); }
       return '<td><div class="cell '+cls+ed+'" data-gi="'+g.gi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
     }).join('');
@@ -725,6 +730,7 @@ function setLegend(mode,LT){
   let html;
   if(mode==='order') html=L([['r','〜'+LT+'日(要発注)'],['o','〜'+(LT*2)+'日'],['y','〜'+(LT*4)+'日'],['g','十分/∞'],['u','実績なし']]);
   else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']]);
+  else if(mode==='point') html=L([['g','変倍あり(2倍〜)'],['u','1倍(変倍なし)']])+'<span>　—＝楽天SKUなし（楽天=表示/編集可・Yahoo=手動）</span>';
   else html=L([['g','〜2か月'],['y','2か月〜'],['o','半年〜'],['r','1年〜'],['u','不明']]);
   document.getElementById('legend').innerHTML=html;
 }
@@ -1025,6 +1031,19 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); clos
 let WHOLESALE=null;   // {period, tables:[{label,grades,rows,notes}]}
 let WS_MAP=null;      // 'type|length|grade' -> {fu, shi}
 const WS_CACHE='hayazai_ws_cache';
+
+/* ===== 楽天ポイント倍率（ポイントモードのグリッド表示用） ===== */
+let RK_POINTS=null;   // 小文字manageNumber -> 倍率
+const RKP_CACHE='hayazai_rkpoints';
+async function ensureRkPoints(force){
+  if(!RK_POINTS){ try{ const s=localStorage.getItem(RKP_CACHE); if(s) RK_POINTS=JSON.parse(s); }catch(e){} }
+  if((force||!RK_POINTS) && SOURCE==='live'){
+    try{ const r=await fetch(GAS_URL+'?api=rkpoints&'+authQS()); const j=await r.json();
+      if(j&&j.ok&&j.rates){ RK_POINTS=j.rates; try{localStorage.setItem(RKP_CACHE,JSON.stringify(j.rates));}catch(e){} } }catch(e){}
+  }
+  return RK_POINTS;
+}
+function rkPointFor(c){ if(!c.rakuten||!c.rakuten.code) return null; if(!RK_POINTS) return null; const v=RK_POINTS[String(c.rakuten.code).toLowerCase()]; return (v==null?1:v); }
 function normWsType(name){ return String(name||'').replace(/桧/g,'').trim(); }   // 桧フローリング→フローリング
 function buildWsMap(ws){
   const map={};
