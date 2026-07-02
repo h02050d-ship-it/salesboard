@@ -678,6 +678,32 @@ function scanCells(){
   return out;
 }
 
+/* ===== A級標準の統合カード＝在庫/価格/発注モード用（原板共通。売れ行き/ポイントはtype別のまま） ===== */
+let COORD_DAILY=null;   // coord→合算日販（同じ物理在庫を食う全SKUの合計。発注表示の正確化）
+function cellDaysLeftC(gi,c){
+  if(c.infinite) return Infinity;
+  const cd=c.coord||'';
+  const daily=(cd&&COORD_DAILY&&COORD_DAILY[cd]!=null)?COORD_DAILY[cd]:cellDaily(c);
+  if(daily<=0) return null;
+  return Math.floor(((+curStock(gi,c)||0)*(BUNDLE[c.length]||1))/daily);
+}
+function mergeAStd(groups){
+  const aStd=groups.filter(g=>g.quality==='A'&&g.group==='標準');
+  if(aStd.length<2) return groups;
+  const rep=aStd.find(g=>g.type==='フローリング')||aStd[0];
+  const cells={};
+  aStd.forEach(g=>Object.keys(g.cells).forEach(k=>{ if(!(k in cells)) cells[k]=Object.assign({_gi:g.gi},g.cells[k]); }));
+  Object.keys(rep.cells).forEach(k=>{ cells[k]=Object.assign({_gi:rep.gi},rep.cells[k]); });   // 価格表示の基準はフローリング
+  const lens=LEN_ORDER.filter(L=>Object.keys(cells).some(k=>+k.split('|')[0]===L));
+  const grades=GRADE_ORDER.filter(G=>Object.keys(cells).some(k=>k.split('|')[1]===G));
+  let stock=0; Object.values(cells).forEach(c=>stock+=(+c.stock||0));
+  const merged={gi:rep.gi,quality:'A',group:'標準',width:'120mm幅',type:'F・羽目板・スノコ 共通',
+    name:'A級 120mm幅（F・羽目板・スノコ 共通）',lens:lens,grades:grades,cells:cells,stockSum:stock,staleN:rep.staleN,_merged:true};
+  const out=[]; let ins=false;
+  groups.forEach(g=>{ if(g.quality==='A'&&g.group==='標準'){ if(!ins){out.push(merged);ins=true;} return; } out.push(g); });
+  return out;
+}
+
 /* ===== 描画 ===== */
 function render(){
   const mode=document.querySelector('#modeSeg .on').dataset.mode;
@@ -693,10 +719,14 @@ function render(){
   // ポイントモード初回は楽天の全倍率を一括取得してから再描画
   if(mode==='point' && SOURCE==='live' && !RK_POINTS){ ensureRkPoints().then(()=>{ if(document.querySelector('#modeSeg .on').dataset.mode==='point') render(); }); }
 
+  // coord→合算日販（発注表示を帯・メールと同じ「共有在庫は合算需要」で計算するため毎回更新）
+  COORD_DAILY={}; DATA.forEach(g=>Object.values(g.cells).forEach(c=>{ const cd=c.coord||''; if(cd) COORD_DAILY[cd]=(COORD_DAILY[cd]||0)+cellDaily(c); }));
   let groups=DATA.filter(g=>(!qf||g.quality===qf)&&(!kw||g.name.includes(kw))
     &&!(hide105&&g.width==='105mm幅')
     &&!(hideOrig&&g.width==='オリジナル')
     &&!(hideSnoko&&g.type==='スノコ板'));
+  // A級標準は在庫/価格/発注モードでは1枚に統合（原板共通＝同じ表を3回見せない）。売れ行き/ポイントはtype別。
+  if(mode==='stock'||mode==='price'||mode==='order') groups=mergeAStd(groups);
   groups=groups.slice().sort((a,b)=>{
     if(sort==='stock') return b.stockSum-a.stockSum;
     if(sort==='name')  return a.name.localeCompare(b.name,'ja');
@@ -756,16 +786,17 @@ function cardHTML(g,mode){
     const tds=g.grades.map(G=>{
       const c=g.cells[L+'|'+G];
       if(!c) return '<td><div class="cell empty"></div></td>';
-      const s=curStock(g.gi,c), p=curPriceDisp(g.gi,c);
+      const cgi=(c._gi!=null)?c._gi:g.gi;   // 統合カードのセルは元グループのgiで開閉・編集する
+      const s=curStock(cgi,c), p=curPriceDisp(cgi,c);
       const sDisp=c.infinite?'∞':s;
-      const ed=isEdited(g.gi,c)?' edited':'';
+      const ed=isEdited(cgi,c)?' edited':'';
       let cls,main;
       if(mode==='stock'){ cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
-      else if(mode==='order'){ if(reorderExcluded(g)){ cls='bg-u'; main='対象外'; } else { const dl=cellDaysLeft(g.gi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); } }
+      else if(mode==='order'){ if(reorderExcluded(g)){ cls='bg-u'; main='対象外'; } else { const dl=cellDaysLeftC(cgi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); } }
       else if(mode==='point'){ if(!c.rakuten){ cls='bg-u'; main='—'; } else { const rt=rkPointFor(c); main=(rt==null?'…':rt+'倍'); cls=(rt!=null&&rt>1)?'bg-g':'bg-u'; } }
       else { cls='bg-'+bucket(c.combined); main=ageShort(c.combined); }
-      return '<td><div class="cell '+cls+ed+'" data-gi="'+g.gi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
+      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
     }).join('');
     return '<tr><th>'+L+bd+'</th>'+tds+'</tr>';
   }).join('');
@@ -878,8 +909,10 @@ function openDrawer(gi,key){
     +'<div class="stepper price"><button onclick="'+bump+'(-100)">−</button><input id="'+inputId+'" type="number" inputmode="numeric" value="'+cur+'"><button onclick="'+bump+'(100)">＋</button></div>'
     +'<div class="orig">現在の登録: '+yen(base)+(cur!==base?' → <b style="color:var(--accent)">'+yen(cur)+'</b>':'')+'</div></div>';
   const yBase=c.yahoo?(+c.yahoo.price||0):0, rBase=c.rakuten?(+c.rakuten.price||0):0;
+  const unifyANote=(g.quality==='A'&&g.group==='標準'&&c.yahoo)
+    ? '<div class="note-tip" style="margin-top:8px">🔗 A級標準は原板共通のため、Yahoo価格は<b>フローリング15/12mm・羽目板の同じ長さ/等級にまとめて反映</b>されます（スノコは楽天専売・体系が別なので対象外）。</div>' : '';
   const priceBlock =
-      (c.yahoo ? priceOne('Yahoo!', yBase, py, 'prInY', 'bumpPriceY', 'yh') : '')
+      (c.yahoo ? priceOne('Yahoo!', yBase, py, 'prInY', 'bumpPriceY', 'yh')+unifyANote : '')
     + (c.rakuten ? priceOne('楽天', rBase, pr, 'prInR', 'bumpPriceR', 'rk') : '')
     + (c.rakuten ? '<div class="note-tip" style="margin-top:8px">⚠️ 楽天はYahooと<b>入数・送料込み体系が異なる場合</b>があります（910は40枚入）。表示の現在価格を基準にそのまま入力してください。</div>' : '')
     + ((!c.yahoo && !c.rakuten) ? '<div class="edit"><div class="pr-lock">価格編集の対象SKUがありません。</div></div>' : '');
@@ -893,7 +926,7 @@ function openDrawer(gi,key){
   const fmtSale=(x)=>{ const amt=x.bundle>0?(x.bundle+'枚入 × '+x.sets+'セット'):(x.sets+'セット'+(x.pieces?'（'+x.pieces+'枚）':'')); return '<div class="hist-row"><span class="hist-d">'+x.date+'</span><span class="dot '+(x.platform==='yahoo'?'yh':'rk')+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(x.platform==='rakuten'?'楽天':'-'))+'</span><span class="hist-q">'+amt+'</span></div>'; };
   const histBlock='<div class="hist"><div class="et">📋 販売履歴（直近5件）</div>'+((c.history&&c.history.length)?c.history.map(fmtSale).join(''):'<div class="hist-empty">販売記録なし</div>')+'</div>';
   // 売れ行きサマリ（直近30/90日＋在庫切れ予測）
-  const dl=cellDaysLeft(gi,c), LT=getLeadTime();
+  const dl=cellDaysLeftC(gi,c), LT=getLeadTime();   // 共有在庫は合算日販＝帯・メールと同じ計算
   const excl=reorderExcluded(g);
   const dlCls=(excl||dl===null||dl===Infinity)?'':(dl<=LT?'crit':(dl<=LT*2?'warn':''));
   const dlTxt=excl?'対象外':(c.infinite?'∞':(dl===null?'—':(dl<=0?'切れ':'約'+dl+'日')));
@@ -1040,6 +1073,7 @@ async function applyEdits(){
       const allErrs=j.errors||[];
       const shown=allErrs.filter(er=>!(er.indexOf('楽天')>=0&&er.indexOf('401')>=0));
       let msg=(j.applied>0)?('✅ 反映しました：'+j.applied+'件'):'自動反映できた項目はありませんでした';
+      if(j.notes&&j.notes.length) msg+='\n'+j.notes.join('\n');
       if(j.rktodoAdded) msg+='\n\n🛒 楽天は自動反映できないため「楽天 手動反映リスト」に記録しました（現在 '+j.rktodo+'件）。\nツールバーの🛒ボタン → RMSで更新 → ✓で消し込み。';
       if(shown.length) msg+='\n\n⚠️ 失敗 '+shown.length+'件:\n'+shown.join('\n');
       const keep=(j.applied===0 && !j.rktodoAdded && shown.length>0);   // 例:Yahooトークン切れ→編集を保持して再試行可能に
