@@ -1259,7 +1259,7 @@ function renderWholesale(){
 }
 function fillWsSlot(){
   const slot=document.getElementById('wsDrawSlot'); if(!slot||!cur) return;
-  const ws=wsLookup(cur.g.type,cur.c.length,cur.c.grade);
+  const ws=wsLookup(String(cur.g.type).replace(/\s*\d+mm$/,''),cur.c.length,cur.c.grade);   // B級Fは「フローリング15mm」等＝卸表は厚み無しキー
   if(!ws){ slot.innerHTML=''; return; }
   slot.innerHTML='<div class="ws-draw"><div class="et">📋 卸価格（'+((WHOLESALE&&WHOLESALE.period)||'')+'）</div><div class="row">'
     +'<div><div class="n">'+(ws.fu!=null?yen(ws.fu):'—')+'</div><div class="l">付売</div></div>'
