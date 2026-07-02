@@ -360,6 +360,7 @@
       <div class="rkseg" id="rkSeg">
         <button data-rk="hot" class="on">🔥 売れ筋</button>
         <button data-rk="dead">🪦 死に筋・滞留</button>
+        <button data-rk="sales">📈 月次売上</button>
       </div>
       <div class="rkseg" id="rkPer">
         <button data-per="30">30日</button>
@@ -472,6 +473,7 @@ let edits={};          // key 'gi|L|G' -> {stock?, price?}
 let SOURCE='';         // 'live' | 'sample'
 let MALLBASE={yahoo:'',rakuten:''};   // 商品ページURLのベース
 let COUNTSHEET=[];                     // 在庫チェック表の構造（ボード読込時に取得＝即印刷）
+let COSTS={};                          // 原価設定（品質|等級 → {cube:㎥単価, add:加工費/枚}）粗利ビュー用
 const CACHE_KEY='hayazai_board_cache'; // 前回のボードデータ（開いた瞬間に即表示する用）
 let refreshTimer=null;                  // 定期裏更新タイマー
 const ckey=(gi,L,G)=>gi+'|'+L+'|'+G;
@@ -563,6 +565,7 @@ function applyData(j,fromCache){
   DATA=normalizeGroups(j.groups);
   MALLBASE.yahoo=j.yahooBase||''; MALLBASE.rakuten=j.rakutenBase||'';
   COUNTSHEET=j.countsheet||[];
+  COSTS=j.costs||COSTS;
   const sb=document.getElementById('sheetBtn'); if(sb&&j.sheetUrl){ sb.href=j.sheetUrl; sb.style.display=''; }
   if(typeof j.rktodo==='number'){ RKTODO_N=j.rktodo; updateRkTodoBadge(); }
   SOURCE='live';
@@ -588,7 +591,7 @@ function startAutoRefresh(){
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && canBackgroundRefresh()) fetchLive({silent:true}); });
 function saveCache(j){
-  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon,sheetUrl:j.sheetUrl})); }catch(e){}
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon,sheetUrl:j.sheetUrl,costs:j.costs})); }catch(e){}
 }
 function loadCache(){ try{ const s=localStorage.getItem(CACHE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function gridError(msg){
@@ -787,6 +790,28 @@ function wireLeadTime(){
   const i=document.getElementById('ltIn'); if(!i) return;
   i.onchange=()=>{ const v=Math.max(1,Math.round(+i.value||14)); setLeadTime(v); render(); };
 }
+// 💰 粗利ブロック（ドロワー用）。原価=0.12×0.018×長さ(m)㎥ × ㎥単価 ＋ 加工費/枚（原価設定シート）。
+// Yahoo束価格−原価/束で概算粗利。送料・手数料・歩留まりは含まず＝目安。
+function grossBlock(g,c,py){
+  const cm=COSTS[g.quality+'|'+c.grade];
+  const head='<div class="ws-draw"><div class="et">💰 粗利（概算・送料手数料含まず）</div>';
+  if(!cm||!cm.cube) return head+'<div class="none">原価未設定 — スプシ「原価設定」シートに㎥単価を入れると表示されます</div></div>';
+  const vol=0.12*0.018*(c.length/1000);                       // 原板120×18×長さ の材積(㎥)
+  const piece=Math.round(vol*cm.cube+(cm.add||0));            // 原価/枚
+  const bundle=BUNDLE[c.length]||20;
+  const costB=piece*bundle;                                   // 原価/束(Yahoo束)
+  if(!(py>0)) return head+'<div class="none">Yahoo価格が無いため計算できません（原価: '+yen(piece)+'/枚）</div></div>';
+  const gross=py-costB, rate=Math.round(gross/py*100);
+  const cls=rate<15?'crit':(rate<30?'warn':'');
+  return head
+    +'<div class="row">'
+    +'<div><div class="n">'+yen(costB)+'</div><div class="l">原価/束（'+yen(piece)+'/枚）</div></div>'
+    +'<div><div class="n">'+yen(py)+'</div><div class="l">売価(Yahoo)/束</div></div>'
+    +'<div class="'+cls+'"><div class="n" style="'+(rate<15?'color:var(--r-ink)':(rate<30?'color:var(--o-ink)':'color:#1a7f37'))+'">'+yen(gross)+'<small style="font-size:10px"> ('+rate+'%)</small></div><div class="l">粗利/束</div></div>'
+    +'</div>'
+    +'<div class="note">原価＝原板㎥単価×材積(120×18×'+c.length+') '+(cm.add?('＋加工費'+yen(cm.add)+'/枚'):'')+'。単価変更はスプシ「原価設定」シート。</div></div>';
+}
+
 // 月別販売スパークライン（直近12か月・枚）。spark[0]=11か月前 … spark[11]=今月。
 function sparkBlock(spark){
   if(!spark||!spark.length||!spark.some(v=>v>0))
@@ -851,6 +876,7 @@ function openDrawer(gi,key){
     '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
    + mallHTML('Yahoo!','yh',c.yahoo,'yahoo') + mallHTML('楽天','rk',c.rakuten,'rakuten')
    + salesBlock
+   + grossBlock(g,c,py)
    + sparkBlock(c.spark)
    + histBlock
    + stockBlock
@@ -1010,7 +1036,9 @@ function openRank(){ document.getElementById('rankModal').classList.add('show');
 function closeRank(){ document.getElementById('rankModal').classList.remove('show'); }
 function renderRank(){
   const body=document.getElementById('rkBody'), note=document.getElementById('rkNote');
+  document.getElementById('rkPer').style.display=(rankState.metric==='sales')?'none':'';
   if(SOURCE!=='live'){ body.innerHTML='<div class="rank-empty">ログインして実在庫に接続するとランキングを表示します。</div>'; note.textContent=''; return; }
+  if(rankState.metric==='sales'){ renderSalesTrend(body,note); return; }
   const per=rankState.per, sel=per===30?'sold30':'sold90';
   const cells=scanCells();
   let rows;
@@ -1036,6 +1064,38 @@ function renderRank(){
       +'<div class="rv">'+val.toLocaleString()+'<small>'+unit+'</small></div></div>';
   }).join('');
   body.querySelectorAll('.rrow').forEach(el=>el.onclick=()=>{ closeRank(); openDrawer(+el.dataset.gi,el.dataset.k); });
+}
+// 📈 月次売上推移（概算）＝各規格の月別販売枚数(spark)×現在の枚単価を合算。
+// 枚単価: Yahoo束価格÷束枚数を優先、無ければ楽天(910=40枚入・送料込みのため過大気味)。価格が無い規格は枚数のみ計上。
+function renderSalesTrend(body,note){
+  const mRev=new Array(12).fill(0), mPcs=new Array(12).fill(0);
+  let noPrice=0;
+  DATA.forEach(g=>Object.values(g.cells).forEach(c=>{
+    if(!c.spark||!c.spark.length) return;
+    let pp=0;
+    if(c.yahoo&&+c.yahoo.price>0) pp=(+c.yahoo.price)/(BUNDLE[c.length]||20);
+    else if(c.rakuten&&+c.rakuten.price>0) pp=(+c.rakuten.price)/((c.length===910)?40:(BUNDLE[c.length]||20));
+    else if(c.spark.some(v=>v>0)) noPrice++;
+    c.spark.forEach((v,i)=>{ mPcs[i]+=(+v||0); mRev[i]+=(+v||0)*pp; });
+  }));
+  note.textContent='全規格の月別販売枚数×現在の枚単価（Yahoo優先）で計算した概算売上。過去の実売価格ではなく現価格ベース'+(noPrice?('・価格不明'+noPrice+'規格は枚数のみ'):'')+'。';
+  if(!mPcs.some(v=>v>0)){ body.innerHTML='<div class="rank-empty">販売データがありません</div>'; return; }
+  const now=new Date(), max=Math.max.apply(null,mRev)||1;
+  const man=(v)=>v>=10000?((v/10000).toFixed(v>=1000000?0:1)+'万'):Math.round(v).toLocaleString();
+  const bars=mRev.map((v,i)=>{
+    const d=new Date(now.getFullYear(),now.getMonth()-(11-i),1);
+    const h=v>0?Math.max(6,Math.round(v/max*100)):0;
+    return '<div class="'+(i===11?'cur':'')+'" title="'+d.getFullYear()+'/'+(d.getMonth()+1)+'：¥'+Math.round(v).toLocaleString()+'（'+mPcs[i]+'枚）"><i style="height:'+h+'%"></i><b>'+(d.getMonth()+1)+'</b></div>';
+  }).join('');
+  const cur=mRev[11], prev=mRev[10];
+  const diff=prev>0?Math.round((cur-prev)/prev*100):null;
+  body.innerHTML=
+    '<div class="sales-sum" style="margin:10px 4px">'
+    +'<div><div class="n">¥'+man(cur)+'</div><div class="l">今月の概算売上（'+mPcs[11].toLocaleString()+'枚）</div></div>'
+    +'<div><div class="n">¥'+man(prev)+'</div><div class="l">先月（'+mPcs[10].toLocaleString()+'枚）</div></div>'
+    +'<div><div class="n" style="'+(diff===null?'':(diff>=0?'color:#1a7f37':'color:var(--r-ink)'))+'">'+(diff===null?'—':(diff>=0?'+':'')+diff+'%')+'</div><div class="l">前月比</div></div>'
+    +'</div>'
+    +'<div class="spark" style="margin:6px 4px"><div class="et">📈 月別 概算売上（直近12か月・数字=月）</div><div class="bars" style="height:90px">'+bars+'</div></div>';
 }
 document.getElementById('rankBtn').onclick=openRank;
 document.getElementById('rkX').onclick=closeRank;
