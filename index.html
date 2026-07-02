@@ -335,6 +335,7 @@
   <button id="rankBtn" class="tbtn" title="売れ筋・死に筋（滞留在庫）ランキング">📊 ランキング</button>
   <button id="wsBtn" class="tbtn" title="付売・市売（卸）価格表">📋 付売・市売</button>
   <a id="sheetBtn" class="tbtn" target="_blank" rel="noopener" title="連動している在庫スプレッドシートを開く" style="text-decoration:none;display:none">📊 スプシ ↗</a>
+  <button id="rkTodoBtn" class="tbtn" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none;border-color:#e0a96d;color:var(--o-ink);font-weight:800">🛒 楽天 手動反映 <b id="rkTodoN">0</b>件</button>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
   <button id="mmBtn" class="tbtn" title="Yahoo出品あり・楽天出品なしの規格を一覧印刷">🛒 楽天未掲載</button>
   <div class="spacer"></div>
@@ -380,6 +381,18 @@
       <button class="x" id="wsX">✕</button>
     </div>
     <div class="rank-body" id="wsBody"></div>
+  </div>
+</div>
+
+<!-- 楽天 手動反映TODOモーダル -->
+<div class="rank-modal" id="rkTodoModal">
+  <div class="rank-box">
+    <div class="rkh">
+      <h3>🛒 楽天 手動反映リスト</h3>
+      <button class="x" id="rkTodoX" style="margin-left:auto">✕</button>
+    </div>
+    <div class="rank-note">ボードで変更した価格・ポイントのうち、<b>楽天へ自動反映できなかったもの</b>（楽天のAPI反映は有料オプションのため手動運用）。商品ページを確認し、RMSで「新しい値」に更新したら <b>✓反映済み</b> を押してください。</div>
+    <div class="rank-body" id="rkTodoBody"></div>
   </div>
 </div>
 
@@ -550,6 +563,7 @@ function applyData(j,fromCache){
   MALLBASE.yahoo=j.yahooBase||''; MALLBASE.rakuten=j.rakutenBase||'';
   COUNTSHEET=j.countsheet||[];
   const sb=document.getElementById('sheetBtn'); if(sb&&j.sheetUrl){ sb.href=j.sheetUrl; sb.style.display=''; }
+  if(typeof j.rktodo==='number'){ RKTODO_N=j.rktodo; updateRkTodoBadge(); }
   SOURCE='live';
   document.getElementById('gate').style.display='none';
   document.getElementById('demoBan').style.display='none';
@@ -965,11 +979,17 @@ async function applyEdits(){
     const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:c.email,pass:c.pass,updates:updates})});
     const j=await r.json();
     if(j.ok){
-      const fail=(j.errors&&j.errors.length)||0;
-      let msg=(j.applied>0)?('✅ 反映しました：'+j.applied+'件'):'反映できた項目はありませんでした';
-      if(fail) msg+='\n\n⚠️ 失敗 '+fail+'件:\n'+j.errors.join('\n')
-        +(j.errors.join(' ').indexOf('401')>=0?'\n\n※楽天は商品更新(ItemAPI)権限が未許諾のため反映できません。RMSで権限追加が必要です。':'');
-      edits={}; alert(msg); fetchLive();
+      // 楽天の401はTODOリストに記録済み＝アラートでは畳む（それ以外の失敗だけ表示）
+      const allErrs=j.errors||[];
+      const shown=allErrs.filter(er=>!(er.indexOf('楽天')>=0&&er.indexOf('401')>=0));
+      let msg=(j.applied>0)?('✅ 反映しました：'+j.applied+'件'):'自動反映できた項目はありませんでした';
+      if(j.rktodoAdded) msg+='\n\n🛒 楽天は自動反映できないため「楽天 手動反映リスト」に記録しました（現在 '+j.rktodo+'件）。\nツールバーの🛒ボタン → RMSで更新 → ✓で消し込み。';
+      if(shown.length) msg+='\n\n⚠️ 失敗 '+shown.length+'件:\n'+shown.join('\n');
+      const keep=(j.applied===0 && !j.rktodoAdded && shown.length>0);   // 例:Yahooトークン切れ→編集を保持して再試行可能に
+      if(keep){ msg+='\n\n変更は保留のまま残しています（原因解消後にもう一度「保存して同期」できます）。'; }
+      else edits={};
+      if(typeof j.rktodo==='number'){ RKTODO_N=j.rktodo; updateRkTodoBadge(); }
+      alert(msg); fetchLive();
     } else { alert('エラー: '+(j.error||'不明')); }
   }catch(e){ alert('送信失敗: '+e.message); }
   finally{ btn.disabled=false; btn.textContent='保存して同期'; }
@@ -1025,7 +1045,7 @@ document.getElementById('kpiOrder').onclick=()=>{
   document.querySelector('#modeSeg button[data-mode="order"]').classList.add('on');
   document.getElementById('sortSel').value='order'; render(); window.scrollTo({top:0,behavior:'smooth'});
 };
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeDrawer(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeRkTodo(); closeDrawer(); } });
 
 /* ===== 付売・市売（卸）価格 ===== */
 let WHOLESALE=null;   // {period, tables:[{label,grades,rows,notes}]}
@@ -1038,12 +1058,60 @@ const RKP_CACHE='hayazai_rkpoints';
 async function ensureRkPoints(force){
   if(!RK_POINTS){ try{ const s=localStorage.getItem(RKP_CACHE); if(s) RK_POINTS=JSON.parse(s); }catch(e){} }
   if((force||!RK_POINTS) && SOURCE==='live'){
-    try{ const r=await fetch(GAS_URL+'?api=rkpoints&'+authQS()); const j=await r.json();
+    try{ const r=await fetch(GAS_URL+'?api=rkpoints&'+authQS()+(force?'&fresh=1':'')); const j=await r.json();
       if(j&&j.ok&&j.rates){ RK_POINTS=j.rates; try{localStorage.setItem(RKP_CACHE,JSON.stringify(j.rates));}catch(e){} } }catch(e){}
   }
   return RK_POINTS;
 }
 function rkPointFor(c){ if(!c.rakuten||!c.rakuten.code) return null; if(!RK_POINTS) return null; const v=RK_POINTS[String(c.rakuten.code).toLowerCase()]; return (v==null?1:v); }
+
+/* ===== 楽天 手動反映TODO（自動反映できない価格/ポイントの消し込みリスト） ===== */
+let RKTODO_N=0;      // 未処理件数（バッジ）
+let RKTODO=[];       // モーダル用の明細
+function updateRkTodoBadge(){
+  const b=document.getElementById('rkTodoBtn');
+  b.style.display=RKTODO_N>0?'':'none';
+  document.getElementById('rkTodoN').textContent=RKTODO_N;
+}
+function openRkTodo(){
+  document.getElementById('rkTodoModal').classList.add('show');
+  document.getElementById('rkTodoBody').innerHTML='<div class="rank-empty"><span class="spin sm"></span>読み込み中…</div>';
+  fetch(GAS_URL+'?api=rktodo&'+authQS()).then(r=>r.json()).then(j=>{
+    if(j&&j.ok){ RKTODO=j.items||[]; RKTODO_N=RKTODO.length; updateRkTodoBadge(); renderRkTodo(); }
+    else document.getElementById('rkTodoBody').innerHTML='<div class="rank-empty">読み込み失敗: '+((j&&j.error)||'不明')+'</div>';
+  }).catch(e=>{ document.getElementById('rkTodoBody').innerHTML='<div class="rank-empty">通信失敗</div>'; });
+}
+function closeRkTodo(){ document.getElementById('rkTodoModal').classList.remove('show'); }
+function renderRkTodo(){
+  const body=document.getElementById('rkTodoBody');
+  if(!RKTODO.length){ body.innerHTML='<div class="rank-empty">未反映はありません 🎉</div>'; return; }
+  body.innerHTML=RKTODO.map(t=>{
+    const url=(MALLBASE.rakuten&&t.code)?(MALLBASE.rakuten+t.code+'/'):'';
+    const val=(t.kind==='価格')?yen(+t.value||0):t.value;
+    return '<div class="rrow" style="cursor:default">'
+      +'<div class="ri"><div class="t">'+t.tag+'　<span style="color:var(--sub);font-family:ui-monospace,monospace;font-size:10px">'+t.code+'</span></div>'
+      +'<div class="s">'+t.date+' ・ '+t.kind+'</div></div>'
+      +'<div class="rv" style="min-width:86px">'+val+'<small>新しい値</small></div>'
+      +(url?'<a class="tbtn" target="_blank" rel="noopener" href="'+url+'" style="text-decoration:none">商品↗</a>':'')
+      +'<button class="tbtn" style="border-color:#1a7f3766;color:#1a7f37" onclick="rkTodoDone('+t.row+')">✓ 反映済み</button></div>';
+  }).join('');
+}
+async function rkTodoDone(row){
+  try{
+    const c=creds();
+    const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:c.email,pass:c.pass,rktodoDone:[row]})});
+    const j=await r.json();
+    if(j&&j.ok){
+      RKTODO=RKTODO.filter(t=>t.row!==row);
+      RKTODO_N=(typeof j.rktodo==='number')?j.rktodo:RKTODO.length;
+      updateRkTodoBadge(); renderRkTodo();
+      RK_POINTS=null; try{localStorage.removeItem(RKP_CACHE);}catch(e){}   // 手動更新後の倍率/価格を次回取得し直す
+    } else alert('消し込みに失敗: '+((j&&j.error)||'不明'));
+  }catch(e){ alert('通信失敗: '+e.message); }
+}
+document.getElementById('rkTodoBtn').onclick=openRkTodo;
+document.getElementById('rkTodoX').onclick=closeRkTodo;
+document.getElementById('rkTodoModal').onclick=(e)=>{ if(e.target.id==='rkTodoModal') closeRkTodo(); };
 function normWsType(name){ return String(name||'').replace(/桧/g,'').trim(); }   // 桧フローリング→フローリング
 function buildWsMap(ws){
   const map={};
