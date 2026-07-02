@@ -774,7 +774,7 @@ function renderReorder(LT){
     const b=r.dl<=LT?'r':(r.dl<=LT*2?'o':'');
     return '<button class="rchip '+b+'" data-gi="'+r.gi+'" data-k="'+r.key+'">'
       +'<span class="d">'+(r.dl<=0?'在庫切れ':'あと'+r.dl+'日')+'</span>'
-      +'<span>'+r.name.replace(/^[AB]級\s*/,'')+' '+r.length+'/'+r.grade+'</span>'
+      +'<span>'+r.name.replace(/\s*120mm幅/,'')+' '+r.length+'/'+r.grade+'</span>'
       +'<span class="sp">在庫'+r.stock+'束</span></button>';
   }).join('');
   const more=risk.length>8?'<button class="more" id="reMore">'+(reorderExpanded?'閉じる':'＋他'+(risk.length-8)+'件を表示')+'</button>':'';
