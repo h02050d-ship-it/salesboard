@@ -633,8 +633,9 @@ function getLeadTime(){ const v=+localStorage.getItem(LEADTIME_KEY); return v>0?
 function setLeadTime(v){ try{localStorage.setItem(LEADTIME_KEY,String(Math.max(1,Math.round(v))));}catch(e){} }
 // 日販（枚/日）＝直近30日と90日の高い方（売れ始め/季節変動に追従しつつ過小評価を防ぐ）
 function cellDaily(c){ const d30=(+c.sold30||0)/30, d90=(+c.sold90||0)/90; return Math.max(d30,d90); }
-// オリジナル幅・105mm幅＝副産物（B級同様、狙って補充しない）→ 発注アラートの対象外
-function reorderExcluded(g){ return g.width==='オリジナル'||g.width==='105mm幅'; }
+// 発注アラートの対象外＝B級全体（できたなり・仕入れしない）＋オリジナル幅・105mm幅（副産物）
+// → 発注対象はA級標準(120mm幅)のみ（2026-07-02ユーザー決定）
+function reorderExcluded(g){ return g.quality==='B'||g.width==='オリジナル'||g.width==='105mm幅'; }
 // 発注リスク行（coord共有＝A級原板共通のF/羽目板/スノコは1件に統合。残日数は合算日販で計算＝同じ束を複数SKUが食う）
 function buildRiskRows(){
   const byKey={};
