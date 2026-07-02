@@ -300,6 +300,7 @@
     <span id="srcBadge" class="src-badge">● 読込中…</span>
     <div class="kpis">
       <div class="kpi"><div class="n" id="kSku">–</div><div class="l">規格数</div></div>
+      <div class="kpi" title="表示中の規格の直近30日販売枚数の合計（商売の体温計）"><div class="n" id="kSold30">–</div><div class="l">30日販売(枚)</div></div>
       <div class="kpi warn" id="kpiOrder" title="日販から推定して、リードタイム内に在庫が切れそうな規格の数。クリックで発注モード" style="cursor:pointer"><div class="n" id="kOrder">–</div><div class="l">🚨 発注目安</div></div>
       <div class="kpi warn"><div class="n" id="kStale">–</div><div class="l">滞留(60日〜/不明)</div></div>
       <div class="kpi"><div class="n" id="kStock">–</div><div class="l">在庫合計(束)</div></div>
@@ -686,11 +687,12 @@ function render(){
     return mx(b)-mx(a);
   });
 
-  let sku=0,stale=0,stk=0,order=0;
-  groups.forEach(g=>Object.values(g.cells).forEach(c=>{sku++;stk+=(+curStock(g.gi,c)||0);if(c.combined===null||c.combined>=60)stale++;const dl=cellDaysLeft(g.gi,c);if(dl!==null&&dl!==Infinity&&dl<=LT)order++;}));
+  let sku=0,stale=0,stk=0,order=0,s30=0;
+  groups.forEach(g=>Object.values(g.cells).forEach(c=>{sku++;stk+=(+curStock(g.gi,c)||0);s30+=(+c.sold30||0);if(c.combined===null||c.combined>=60)stale++;const dl=cellDaysLeft(g.gi,c);if(dl!==null&&dl!==Infinity&&dl<=LT)order++;}));
   document.getElementById('kSku').textContent=sku;
   document.getElementById('kStale').textContent=stale;
   document.getElementById('kStock').textContent=stk.toLocaleString();
+  document.getElementById('kSold30').textContent=s30.toLocaleString();
   document.getElementById('kOrder').textContent=order;
   document.getElementById('kpiOrder').classList.toggle('warn',order>0);
   renderReorder(LT);
