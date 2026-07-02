@@ -633,8 +633,27 @@ function getLeadTime(){ const v=+localStorage.getItem(LEADTIME_KEY); return v>0?
 function setLeadTime(v){ try{localStorage.setItem(LEADTIME_KEY,String(Math.max(1,Math.round(v))));}catch(e){} }
 // 日販（枚/日）＝直近30日と90日の高い方（売れ始め/季節変動に追従しつつ過小評価を防ぐ）
 function cellDaily(c){ const d30=(+c.sold30||0)/30, d90=(+c.sold90||0)/90; return Math.max(d30,d90); }
-// オリジナル幅＝副産物（B級同様、狙って補充しない）→ 発注アラートの対象外
-function reorderExcluded(g){ return g.width==='オリジナル'; }
+// オリジナル幅・105mm幅＝副産物（B級同様、狙って補充しない）→ 発注アラートの対象外
+function reorderExcluded(g){ return g.width==='オリジナル'||g.width==='105mm幅'; }
+// 発注リスク行（coord共有＝A級原板共通のF/羽目板/スノコは1件に統合。残日数は合算日販で計算＝同じ束を複数SKUが食う）
+function buildRiskRows(){
+  const byKey={};
+  scanCells().forEach(r=>{
+    if(r.infinite||r.excl) return;
+    const k=(r.c.coord?('c|'+r.c.coord):('s|'+r.gi+'|'+r.key));
+    const s=byKey[k]||(byKey[k]={list:[],daily:0});
+    s.list.push(r); s.daily+=r.daily;
+  });
+  return Object.values(byKey).map(s=>{
+    if(s.daily<=0) return null;
+    const r=s.list[0];
+    const dl=Math.floor((r.stock*(BUNDLE[r.length]||1))/s.daily);
+    const shared=s.list.length>1;
+    return {gi:r.gi, key:r.key, dl:dl, stock:r.stock,
+      label: shared ? (r.g.quality+'級 '+r.length+'/'+r.grade+'（原板共通）')
+                    : (r.name.replace(/\s*120mm幅/,'')+' '+r.length+'/'+r.grade)};
+  }).filter(Boolean);
+}
 // 残日数：∞=無限在庫 / null=販売実績なし（推定不能） / 数値=あと何日で在庫切れ
 function cellDaysLeft(gi,c){
   if(c.infinite) return Infinity;
@@ -693,8 +712,14 @@ function render(){
     return mx(b)-mx(a);
   });
 
-  let sku=0,stale=0,stk=0,order=0,s30=0;
-  groups.forEach(g=>Object.values(g.cells).forEach(c=>{sku++;stk+=(+curStock(g.gi,c)||0);s30+=(+c.sold30||0);if(c.combined===null||c.combined>=60)stale++;const dl=cellDaysLeft(g.gi,c);if(dl!==null&&dl!==Infinity&&dl<=LT&&!reorderExcluded(g))order++;}));
+  let sku=0,stale=0,stk=0,s30=0;
+  const seenCoord={};   // A級標準はF/羽目板/スノコが同じ物理在庫(coord共有)＝合計は1回だけ数える
+  groups.forEach(g=>Object.values(g.cells).forEach(c=>{
+    sku++;s30+=(+c.sold30||0);if(c.combined===null||c.combined>=60)stale++;
+    const cd=c.coord||'';
+    if(!cd||!seenCoord[cd]){ if(cd)seenCoord[cd]=1; stk+=(+curStock(g.gi,c)||0); }
+  }));
+  const order=buildRiskRows().filter(r=>r.dl<=LT).length;   // 帯・メールと同じ計算（原板共通は1件）
   document.getElementById('kSku').textContent=sku;
   document.getElementById('kStale').textContent=stale;
   document.getElementById('kStock').textContent=stk.toLocaleString();
@@ -717,7 +742,8 @@ function render(){
 }
 function sectionBanner(q,groups){
   let cards=0,stk=0;
-  groups.forEach(g=>Object.values(g.cells).forEach(c=>{cards++;stk+=(+curStock(g.gi,c)||0);}));
+  const seen={};   // 原板共通(coord共有)は在庫計に1回だけ
+  groups.forEach(g=>Object.values(g.cells).forEach(c=>{cards++;const cd=c.coord||'';if(!cd||!seen[cd]){if(cd)seen[cd]=1;stk+=(+curStock(g.gi,c)||0);}}));
   return '<div class="section sec-'+q.toLowerCase()+'">'
     + '<div class="sec-l"><span class="sec-q">'+q+'</span><div class="sec-t">'+q+'級品</div></div>'
     + '<div class="sec-kpi">'+groups.length+'グループ ・ '+cards+'規格 ・ 在庫計 '+stk.toLocaleString()+'束</div></div>';
@@ -763,8 +789,7 @@ function renderReorder(LT){
   const box=document.getElementById('reorder');
   if(SOURCE!=='live'){ box.classList.add('hidden'); return; }
   // リスク＝無限・実績なしを除き、残日数 ≤ LT*2 のものを近い順に
-  const risk=scanCells().filter(r=>!r.infinite && !r.excl && r.dl!==null && r.dl!==Infinity && r.dl<=LT*2)
-                        .sort((a,b)=>a.dl-b.dl);
+  const risk=buildRiskRows().filter(r=>r.dl<=LT*2).sort((a,b)=>a.dl-b.dl);
   const ltCtl='<span class="lt">仕入リードタイム <input id="ltIn" type="number" inputmode="numeric" min="1" value="'+LT+'"> 日</span>';
   if(!risk.length){
     box.classList.remove('hidden');
@@ -777,7 +802,7 @@ function renderReorder(LT){
     const b=r.dl<=LT?'r':(r.dl<=LT*2?'o':'');
     return '<button class="rchip '+b+'" data-gi="'+r.gi+'" data-k="'+r.key+'">'
       +'<span class="d">'+(r.dl<=0?'在庫切れ':'あと'+r.dl+'日')+'</span>'
-      +'<span>'+r.name.replace(/\s*120mm幅/,'')+' '+r.length+'/'+r.grade+'</span>'
+      +'<span>'+r.label+'</span>'
       +'<span class="sp">在庫'+r.stock+'束</span></button>';
   }).join('');
   const more=risk.length>8?'<button class="more" id="reMore">'+(reorderExpanded?'閉じる':'＋他'+(risk.length-8)+'件を表示')+'</button>':'';
