@@ -633,6 +633,8 @@ function getLeadTime(){ const v=+localStorage.getItem(LEADTIME_KEY); return v>0?
 function setLeadTime(v){ try{localStorage.setItem(LEADTIME_KEY,String(Math.max(1,Math.round(v))));}catch(e){} }
 // 日販（枚/日）＝直近30日と90日の高い方（売れ始め/季節変動に追従しつつ過小評価を防ぐ）
 function cellDaily(c){ const d30=(+c.sold30||0)/30, d90=(+c.sold90||0)/90; return Math.max(d30,d90); }
+// オリジナル幅＝副産物（B級同様、狙って補充しない）→ 発注アラートの対象外
+function reorderExcluded(g){ return g.width==='オリジナル'; }
 // 残日数：∞=無限在庫 / null=販売実績なし（推定不能） / 数値=あと何日で在庫切れ
 function cellDaysLeft(gi,c){
   if(c.infinite) return Infinity;
@@ -651,6 +653,7 @@ function scanCells(){
       dl:cellDaysLeft(g.gi,c), daily:cellDaily(c),
       sold30:(+c.sold30||0), sold90:(+c.sold90||0),
       stock:(+curStock(g.gi,c)||0), infinite:!!c.infinite,
+      excl:reorderExcluded(g),
       name:g.name, length:c.length, grade:c.grade});
   }));
   return out;
@@ -691,7 +694,7 @@ function render(){
   });
 
   let sku=0,stale=0,stk=0,order=0,s30=0;
-  groups.forEach(g=>Object.values(g.cells).forEach(c=>{sku++;stk+=(+curStock(g.gi,c)||0);s30+=(+c.sold30||0);if(c.combined===null||c.combined>=60)stale++;const dl=cellDaysLeft(g.gi,c);if(dl!==null&&dl!==Infinity&&dl<=LT)order++;}));
+  groups.forEach(g=>Object.values(g.cells).forEach(c=>{sku++;stk+=(+curStock(g.gi,c)||0);s30+=(+c.sold30||0);if(c.combined===null||c.combined>=60)stale++;const dl=cellDaysLeft(g.gi,c);if(dl!==null&&dl!==Infinity&&dl<=LT&&!reorderExcluded(g))order++;}));
   document.getElementById('kSku').textContent=sku;
   document.getElementById('kStale').textContent=stale;
   document.getElementById('kStock').textContent=stk.toLocaleString();
@@ -733,7 +736,7 @@ function cardHTML(g,mode){
       let cls,main;
       if(mode==='stock'){ cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
-      else if(mode==='order'){ const dl=cellDaysLeft(g.gi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); }
+      else if(mode==='order'){ if(reorderExcluded(g)){ cls='bg-u'; main='対象外'; } else { const dl=cellDaysLeft(g.gi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); } }
       else if(mode==='point'){ if(!c.rakuten){ cls='bg-u'; main='—'; } else { const rt=rkPointFor(c); main=(rt==null?'…':rt+'倍'); cls=(rt!=null&&rt>1)?'bg-g':'bg-u'; } }
       else { cls='bg-'+bucket(c.combined); main=ageShort(c.combined); }
       return '<td><div class="cell '+cls+ed+'" data-gi="'+g.gi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
@@ -760,7 +763,7 @@ function renderReorder(LT){
   const box=document.getElementById('reorder');
   if(SOURCE!=='live'){ box.classList.add('hidden'); return; }
   // リスク＝無限・実績なしを除き、残日数 ≤ LT*2 のものを近い順に
-  const risk=scanCells().filter(r=>!r.infinite && r.dl!==null && r.dl!==Infinity && r.dl<=LT*2)
+  const risk=scanCells().filter(r=>!r.infinite && !r.excl && r.dl!==null && r.dl!==Infinity && r.dl<=LT*2)
                         .sort((a,b)=>a.dl-b.dl);
   const ltCtl='<span class="lt">仕入リードタイム <input id="ltIn" type="number" inputmode="numeric" min="1" value="'+LT+'"> 日</span>';
   if(!risk.length){
@@ -866,8 +869,9 @@ function openDrawer(gi,key){
   const histBlock='<div class="hist"><div class="et">📋 販売履歴（直近5件）</div>'+((c.history&&c.history.length)?c.history.map(fmtSale).join(''):'<div class="hist-empty">販売記録なし</div>')+'</div>';
   // 売れ行きサマリ（直近30/90日＋在庫切れ予測）
   const dl=cellDaysLeft(gi,c), LT=getLeadTime();
-  const dlCls=(dl===null||dl===Infinity)?'':(dl<=LT?'crit':(dl<=LT*2?'warn':''));
-  const dlTxt=c.infinite?'∞':(dl===null?'—':(dl<=0?'切れ':'約'+dl+'日'));
+  const excl=reorderExcluded(g);
+  const dlCls=(excl||dl===null||dl===Infinity)?'':(dl<=LT?'crit':(dl<=LT*2?'warn':''));
+  const dlTxt=excl?'対象外':(c.infinite?'∞':(dl===null?'—':(dl<=0?'切れ':'約'+dl+'日')));
   const salesBlock='<div class="sales-sum">'
     +'<div><div class="n">'+(+c.sold30||0)+'</div><div class="l">直近30日(枚)</div></div>'
     +'<div><div class="n">'+(+c.sold90||0)+'</div><div class="l">直近90日(枚)</div></div>'
