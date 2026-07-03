@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>林材木店 売れ行き＆在庫ボード</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%237a5c3e'/><text x='50' y='54' font-size='60' text-anchor='middle' dominant-baseline='central' fill='%23ffffff' font-family='sans-serif' font-weight='bold'>林</text></svg>">
-<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%237a5c3e'/><text x='50' y='54' font-size='60' text-anchor='middle' dominant-baseline='central' fill='%23ffffff' font-family='sans-serif' font-weight='bold'>林</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%237a5c3e'/><text x='50' y='55' font-size='46' text-anchor='middle' dominant-baseline='central' fill='%23ffffff' font-family='sans-serif' font-weight='bold'>在価</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%237a5c3e'/><text x='50' y='55' font-size='46' text-anchor='middle' dominant-baseline='central' fill='%23ffffff' font-family='sans-serif' font-weight='bold'>在価</text></svg>">
 <meta name="theme-color" content="#7a5c3e">
 <meta name="apple-mobile-web-app-title" content="在庫ボード">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -33,7 +33,7 @@
   header{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,var(--card),var(--card) 70%,transparent);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
   .head-inner{max-width:1280px;margin:0 auto;padding:14px 20px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:14px}
   .brand{display:flex;align-items:center;gap:11px;margin-right:auto}
-  .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#fff;font-weight:800;font-size:19px;box-shadow:var(--shadow)}
+  .logo{flex:0 0 auto;width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#fff;font-weight:800;font-size:19px;box-shadow:var(--shadow)}
   .brand h1{font-size:17px;font-weight:800;letter-spacing:.02em;line-height:1.2}
   .brand .sub{font-size:11px;color:var(--sub);margin-top:2px}
   .src-badge{font-size:11px;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--sub);white-space:nowrap;cursor:pointer}
@@ -273,7 +273,7 @@
 <!-- 合言葉ゲート -->
 <div class="gate" id="gate" style="display:none">
   <div class="gate-box">
-    <div class="logo">林</div>
+    <div class="logo" style="font-size:17px">在価</div>
     <h2>売れ行き＆在庫ボード</h2>
     <p>在庫情報のため、登録メールとパスワードでログインしてください。</p>
     <input id="gateMail" type="email" placeholder="メールアドレス" autocomplete="username" style="margin-bottom:9px">
@@ -291,7 +291,7 @@
 <header>
   <div class="head-inner">
     <div class="brand">
-      <div class="logo">林</div>
+      <div class="logo" style="font-size:14px">在価</div>
       <div>
         <h1>売れ行き＆在庫ボード</h1>
         <div class="sub" id="subline">林材木店 EC在庫一元管理 — 桧フローリング・羽目板</div>
