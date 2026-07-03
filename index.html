@@ -648,7 +648,7 @@ function buildRiskRows(){
   return Object.values(byKey).map(s=>{
     if(s.daily<=0) return null;
     const r=s.list[0];
-    const dl=Math.floor((r.stock*(BUNDLE[r.length]||1))/s.daily);
+    const dl=Math.floor(Math.max(0,r.stock*(BUNDLE[r.length]||1)-(+r.c.reserved||0))/s.daily);   // 引当分は販売不可
     const shared=s.list.length>1;
     return {gi:r.gi, key:r.key, dl:dl, stock:r.stock,
       label: shared ? (r.g.quality+'級 '+r.length+'/'+r.grade+'（原板共通）')
@@ -686,7 +686,8 @@ function cellDaysLeftC(gi,c){
   const cd=c.coord||'';
   const daily=(cd&&COORD_DAILY&&COORD_DAILY[cd]!=null)?COORD_DAILY[cd]:cellDaily(c);
   if(daily<=0) return null;
-  return Math.floor(((+curStock(gi,c)||0)*(BUNDLE[c.length]||1))/daily);
+  const pieces=Math.max(0,(+curStock(gi,c)||0)*(BUNDLE[c.length]||1)-(+c.reserved||0));   // 加工予定の引当分は販売不可
+  return Math.floor(pieces/daily);
 }
 function mergeAStd(groups){
   const aStd=groups.filter(g=>g.quality==='A'&&g.group==='標準');
@@ -922,7 +923,9 @@ function openDrawer(gi,key){
     : '<div class="edit"><div class="et">📦 在庫を編集（束）</div>'
     + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="numeric" value="'+s+'"><button onclick="bumpStock(1)">＋</button></div>'
     + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）</div>'
-    + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div></div>';
+    + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div>'
+    + ((+c.reserved||0)>0?'<div class="orig" style="color:var(--o-ink);font-weight:700">🔒 加工予定に引当 '+c.reserved+'枚（≈'+(Math.round(c.reserved/(BUNDLE[c.length]||1)*10)/10)+'束）— モールへは在庫からこの分を引いて送信</div>':'')
+    + '</div>';
   // 販売履歴（ボードに同梱済み＝即表示）。「○枚入 × ○セット」表記。
   const fmtSale=(x)=>{ const amt=x.bundle>0?(x.bundle+'枚入 × '+x.sets+'セット'):(x.sets+'セット'+(x.pieces?'（'+x.pieces+'枚）':'')); return '<div class="hist-row"><span class="hist-d">'+x.date+'</span><span class="dot '+(x.platform==='yahoo'?'yh':'rk')+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(x.platform==='rakuten'?'楽天':'-'))+'</span><span class="hist-q">'+amt+'</span></div>'; };
   const histBlock='<div class="hist"><div class="et">📋 販売履歴（直近5件）</div>'+((c.history&&c.history.length)?c.history.map(fmtSale).join(''):'<div class="hist-empty">販売記録なし</div>')+'</div>';
