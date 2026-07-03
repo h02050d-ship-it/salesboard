@@ -691,7 +691,7 @@ function cellDaysLeftC(gi,c){
 function mergeAStd(groups){
   const aStd=groups.filter(g=>g.quality==='A'&&g.group==='標準');
   if(aStd.length<2) return groups;
-  const rep=aStd.find(g=>g.type==='フローリング')||aStd[0];
+  const rep=aStd.find(g=>g.type==='フローリング15mm')||aStd.find(g=>/^フローリング/.test(g.type))||aStd[0];   // 価格表示の代表=フローリング15mm
   const cells={};
   aStd.forEach(g=>Object.keys(g.cells).forEach(k=>{ if(!(k in cells)) cells[k]=Object.assign({_gi:g.gi},g.cells[k]); }));
   Object.keys(rep.cells).forEach(k=>{ cells[k]=Object.assign({_gi:rep.gi},rep.cells[k]); });   // 価格表示の基準はフローリング
