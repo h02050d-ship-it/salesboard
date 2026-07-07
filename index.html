@@ -760,24 +760,29 @@ function render(){
   document.getElementById('kpiOrder').classList.toggle('warn',order>0);
   renderReorder(LT);
 
-  // B級を上・A級を下にセクション分け（区分けを明確化）
-  const bG=groups.filter(g=>g.quality==='B');
-  const aG=groups.filter(g=>g.quality==='A');
+  // セクション分け: A級=標準(120mm・スノコ含む)のみ。オリジナル/105幅は副産物なのでB級セクションの下部へ（2026-07-03ユーザー決定）
+  const isSub=g=>g.width==='オリジナル'||g.width==='105mm幅';
+  const aG=groups.filter(g=>g.quality==='A'&&!isSub(g));
+  const bG=[
+    ...groups.filter(g=>g.quality==='B'&&!isSub(g)),
+    ...groups.filter(g=>g.quality==='B'&&isSub(g)),
+    ...groups.filter(g=>g.quality==='A'&&isSub(g)),
+  ];
   let html='';
   if(aG.length) html+=sectionBanner('A',aG)+aG.map(g=>cardHTML(g,mode)).join('');
-  if(bG.length) html+=sectionBanner('B',bG)+bG.map(g=>cardHTML(g,mode)).join('');
+  if(bG.length) html+=sectionBanner('B',bG,'B級品・オリジナル・105幅')+bG.map(g=>cardHTML(g,mode)).join('');
   if(!html) html='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:60px">該当なし</div>';
   const grid=document.getElementById('grid');
   grid.innerHTML=html;
   grid.querySelectorAll('.cell:not(.empty)').forEach(el=>el.onclick=()=>openDrawer(+el.dataset.gi,el.dataset.k));
   updateSaveBar();
 }
-function sectionBanner(q,groups){
+function sectionBanner(q,groups,title){
   let cards=0,stk=0;
   const seen={};   // 原板共通(coord共有)は在庫計に1回だけ
   groups.forEach(g=>Object.values(g.cells).forEach(c=>{cards++;const cd=c.coord||'';if(!cd||!seen[cd]){if(cd)seen[cd]=1;stk+=(+curStock(g.gi,c)||0);}}));
   return '<div class="section sec-'+q.toLowerCase()+'">'
-    + '<div class="sec-l"><span class="sec-q">'+q+'</span><div class="sec-t">'+q+'級品</div></div>'
+    + '<div class="sec-l"><span class="sec-q">'+q+'</span><div class="sec-t">'+(title||q+'級品')+'</div></div>'
     + '<div class="sec-kpi">'+groups.length+'グループ ・ '+cards+'規格 ・ 在庫計 '+stk.toLocaleString()+'束</div></div>';
 }
 function cardHTML(g,mode){
