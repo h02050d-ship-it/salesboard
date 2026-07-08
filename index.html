@@ -59,6 +59,15 @@
   .rktodo-alert .rkbadge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;margin:0 2px;border-radius:11px;background:#fff;color:#d9480f;font-weight:900;font-size:12.5px;vertical-align:middle}
   @keyframes rkpulse{0%,100%{box-shadow:0 3px 10px rgba(217,72,15,.45)}50%{box-shadow:0 0 0 5px rgba(217,72,15,.18),0 3px 12px rgba(217,72,15,.55)}}
   @media (prefers-reduced-motion:reduce){.rktodo-alert{animation:none}}
+  .hz-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(140%);transition:transform .28s cubic-bezier(.2,.9,.3,1.2);z-index:60;max-width:min(92vw,460px);background:#2b2b3a;color:#fff;padding:13px 18px;border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.35);font-size:13px;font-weight:700;line-height:1.6;text-align:center}
+  .hz-toast.show{transform:translateX(-50%) translateY(0)}
+  .hz-toast b{color:#ffd27a}
+  .hz-copyov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:70;display:none;align-items:center;justify-content:center;padding:18px}
+  .hz-copyov.show{display:flex}
+  .hz-copybox{background:var(--card);border-radius:15px;padding:18px;max-width:560px;width:100%;box-shadow:0 20px 50px rgba(0,0,0,.4)}
+  .hz-copyh{font-size:13.5px;font-weight:800;margin-bottom:10px}
+  .hz-copybox textarea{width:100%;height:210px;font-size:12px;line-height:1.6;font-family:ui-monospace,monospace;border:1px solid var(--line);border-radius:10px;padding:10px;resize:vertical;background:var(--bg);color:var(--ink)}
+  .hz-copybtns{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
   .tchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;white-space:nowrap}
   .tchk input{margin:0;cursor:pointer;accent-color:var(--accent)}
   .thide{display:inline-flex;align-items:center;gap:10px;font-size:12px;font-weight:700;color:var(--sub);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;white-space:nowrap}
@@ -420,10 +429,11 @@
 <div class="rank-modal" id="rkTodoModal">
   <div class="rank-box">
     <div class="rkh">
-      <h3>🛒 楽天 手動反映リスト</h3>
-      <button class="x" id="rkTodoX" style="margin-left:auto">✕</button>
+      <h3>🛒 楽天 未反映リスト</h3>
+      <button id="rkClaudeAllBtn" class="tbtn" style="margin-left:auto;border-color:#7b61ff;color:#5b3fd6;font-weight:800" onclick="rkClaudeAll()">🤖 まとめてClaudeで反映</button>
+      <button class="x" id="rkTodoX">✕</button>
     </div>
-    <div class="rank-note">ボードで変更した価格・ポイントのうち、<b>楽天へ自動反映できなかったもの</b>（楽天のAPI反映は有料オプションのため手動運用）。商品ページを確認し、RMSで「新しい値」に更新したら <b>✓反映済み</b> を押してください。</div>
+    <div class="rank-note">ボードで変更した価格・ポイントのうち、<b>楽天へ自動反映できなかったもの</b>（楽天のAPI反映は有料オプションのため）。<b>🤖ボタンでClaudeへの反映依頼をコピー</b>→Claudeに貼り付けると、Claudeが楽天RMS（ログイン済みChrome）を操作して「新しい値」に更新します（保存前に一覧提示・確認）。反映後はこのリストから自動で消えます。手動でやった場合は <b>✓済</b> を押してください。</div>
     <div class="rank-body" id="rkTodoBody"></div>
   </div>
 </div>
@@ -1341,9 +1351,56 @@ function renderRkTodo(){
       +'<div class="s">'+t.date+' ・ '+t.kind+'</div></div>'
       +'<div class="rv" style="min-width:86px">'+val+'<small>新しい値</small></div>'
       +(url?'<a class="tbtn" target="_blank" rel="noopener" href="'+url+'" style="text-decoration:none">商品↗</a>':'')
-      +'<button class="tbtn" style="border-color:#1a7f3766;color:#1a7f37" onclick="rkTodoDone('+t.row+')">✓ 反映済み</button></div>';
+      +'<button class="tbtn" style="border-color:#7b61ff;color:#5b3fd6;font-weight:800" onclick="rkClaudeOne('+t.row+')">🤖 Claudeで反映</button>'
+      +'<button class="tbtn" style="border-color:#1a7f3766;color:#1a7f37" onclick="rkTodoDone('+t.row+')" title="RMSで手動更新済みのときに消し込み">✓済</button></div>';
   }).join('');
 }
+// 楽天RMSへClaudeが反映するための、自己完結した依頼文を生成
+function rkClaudeText(items){
+  const lines=items.map((t,i)=>{
+    const url=(MALLBASE.rakuten&&t.code)?(MALLBASE.rakuten+t.code+'/'):'(商品ページURL不明)';
+    const val=(t.kind==='価格')?('¥'+(+t.value||0).toLocaleString()):(t.value+'倍');
+    return (i+1)+'. 商品コード '+t.code+'（'+t.tag+'）  '+t.kind+' → '+val+'\n   商品ページ: '+url+'\n   消し込み用row: '+t.row;
+  }).join('\n');
+  return '楽天RMSで以下の価格/ポイントを反映してください。\n'
+    +'・ログイン済みのChrome（楽天RMS）を使って操作\n'
+    +'・「価格」は通常販売価格、「ポイント」はポイント変倍（倍率）を更新\n'
+    +'・保存（確定）ボタンを押す前に、変更内容を一覧で提示して私に確認を取ってください\n'
+    +'・反映できたものは salesboard の未反映API（POST {action:"board", rktodoDone:[row,...]}）で消し込み\n\n'
+    +'【対象 '+items.length+'件】\n'+lines;
+}
+async function copyText(text){
+  try{ await navigator.clipboard.writeText(text); return true; }
+  catch(e){
+    try{ const ta=document.createElement('textarea'); ta.value=text; ta.style.position='fixed'; ta.style.opacity='0'; document.body.appendChild(ta); ta.select(); const ok=document.execCommand('copy'); document.body.removeChild(ta); return ok; }
+    catch(e2){ return false; }
+  }
+}
+function toast(msg,ms){
+  let el=document.getElementById('hzToast');
+  if(!el){ el=document.createElement('div'); el.id='hzToast'; el.className='hz-toast'; document.body.appendChild(el); }
+  el.innerHTML=msg; el.classList.add('show');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('show'), ms||3600);
+}
+function showCopyFallback(text){
+  let ov=document.getElementById('hzCopyOv');
+  if(!ov){ ov=document.createElement('div'); ov.id='hzCopyOv'; ov.className='hz-copyov'; document.body.appendChild(ov); }
+  ov.innerHTML='<div class="hz-copybox"><div class="hz-copyh">🤖 この内容をコピーして、Claudeのチャットに貼り付けてください</div>'
+    +'<textarea id="hzCopyTa" readonly></textarea>'
+    +'<div class="hz-copybtns"><button class="btn ghost" onclick="document.getElementById(\'hzCopyOv\').classList.remove(\'show\')">閉じる</button>'
+    +'<button class="btn primary" onclick="(async()=>{const ta=document.getElementById(\'hzCopyTa\');ta.select();const ok=await copyText(ta.value);toast(ok?\'📋 コピーしました\':\'選択された文字を Ctrl+C でコピーしてください\');})()">📋 コピー</button></div></div>';
+  ov.classList.add('show');
+  const ta=document.getElementById('hzCopyTa'); ta.value=text; ta.focus(); ta.select();
+}
+async function rkClaudeReq(items){
+  if(!items.length){ toast('未反映はありません 🎉'); return; }
+  const text=rkClaudeText(items);
+  const ok=await copyText(text);
+  if(ok) toast('📋 '+items.length+'件の反映依頼をコピーしました<br><b>Claudeのチャットに貼り付け</b>てください（RMSを自動操作して反映）');
+  else showCopyFallback(text);
+}
+function rkClaudeOne(row){ const t=RKTODO.find(x=>x.row===row); if(t) rkClaudeReq([t]); }
+function rkClaudeAll(){ rkClaudeReq(RKTODO.slice()); }
 async function rkTodoDone(row){
   try{
     const c=creds();
