@@ -117,6 +117,9 @@
   .bg-u{background:var(--u);color:var(--u-ink)}
   .stkmode .cell .age{font-size:15px} .stkmode .cell .stk{display:none}
   .prmode .cell .age{font-size:12px} .prmode .cell .stk{display:none}
+  .cell .uns{display:none;font-size:9.5px;font-weight:800;line-height:1;margin-top:3px;white-space:nowrap}
+  .stkmode .cell .uns,.prmode .cell .uns{display:block}
+  .uns.b-g{color:var(--g-ink)} .uns.b-y{color:var(--y-ink)} .uns.b-o{color:var(--o-ink)} .uns.b-r{color:var(--r-ink)} .uns.b-u{color:var(--u-ink)}
   .ordmode .cell .age{font-size:13px}
   .ptmode .cell .age{font-size:15px} .ptmode .cell .stk{display:none}
 
@@ -332,10 +335,9 @@
 
 <div class="toolbar">
   <div class="seg" id="modeSeg">
-    <button data-mode="age" class="on">🔥 売れ行き</button>
     <button data-mode="stock">📦 在庫数</button>
     <button data-mode="order">🚨 発注</button>
-    <button data-mode="price">💴 価格</button>
+    <button data-mode="price" class="on">💴 価格</button>
     <button data-mode="point">⭐ ポイント</button>
   </div>
   <button id="rkTodoBtn" class="tbtn rktodo-alert" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none">⚠️ 楽天 未反映 <span class="rkbadge" id="rkTodoN">0</span>件 → 要手動更新</button>
@@ -460,6 +462,8 @@ function bucket(d){ if(d===null||d===undefined) return 'u'; if(d>=365) return 'r
 function ageShort(d){ if(d===null||d===undefined) return '不明'; const y=Math.floor(d/365), m=Math.floor((d%365)/30); return (y>0?y+'年':'')+m+'か月'; }
 function ageLong(d){ if(d===null||d===undefined) return '販売履歴なし'; const y=Math.floor(d/365), m=Math.floor((d%365)/30); return (y>0?y+'年':'')+m+'か月（'+d+'日）'; }
 function yen(n){ return '¥'+(Number(n)||0).toLocaleString(); }
+// 最終販売からの経過を「売れてない期間」として短く（在庫・価格モードのセル下段用）
+function staleShort(d){ if(d===null||d===undefined) return '実績なし'; if(d<1) return '本日'; if(d<30) return d+'日'; const y=Math.floor(d/365), m=Math.floor((d%365)/30); return (y>0?y+'年':'')+m+'か月'; }
 const BUNDLE={910:20,2000:20,3000:10,4000:8};
 const LEN_ORDER=[910,2000,3000,4000], GRADE_ORDER=['丸節','小節','特上小','無節'];
 const WIDTH2GROUP={'120mm幅':'標準','105mm幅':'幅狭','オリジナル':'オリジナル'};
@@ -848,7 +852,13 @@ function cardHTML(g,mode){
         const pl=c.pchg.latest, dn=pl.diff<0;
         tag='<span class="ptag '+(dn?'dn':'up')+'" title="'+pl.date+' '+yen(pl.old)+'→'+yen(pl.new)+'">'+(dn?'▼':'▲')+pl.days+'日</span>';
       }
-      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'">'+tag+'<span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
+      // 在庫・価格モードは下段に「売れてない期間」を表示（発注・ポイントは従来どおり在庫）
+      const showStale=(mode==='stock'||mode==='price');
+      const staleCls=(c.combined!=null)?bucket(c.combined):'u';
+      const sub=showStale
+        ? '<span class="uns b-'+staleCls+'" title="最終販売からの経過">🕐 '+(c.infinite?'—':staleShort(c.combined))+'</span>'
+        : '<span class="stk">在庫 '+sDisp+'</span>';
+      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'">'+tag+'<span class="age">'+main+'</span>'+sub+'</div></td>';
     }).join('');
     return '<tr><th>'+L+bd+'</th>'+tds+'</tr>';
   }).join('');
@@ -860,9 +870,9 @@ function setLegend(mode,LT){
   const L=(items)=>items.map(x=>'<span><i style="background:var(--'+x[0]+')"></i>'+x[1]+'</span>').join('');
   let html;
   if(mode==='order') html=L([['r','〜'+LT+'日(要発注)'],['o','〜'+(LT*2)+'日'],['y','〜'+(LT*4)+'日'],['g','十分/∞'],['u','実績なし']]);
-  else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']]);
+  else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']])+'<span>　🕐＝最終販売からの経過（色＝滞留度）</span>';
   else if(mode==='point') html=L([['g','変倍あり(2倍〜)'],['u','1倍(変倍なし)']])+'<span>　—＝楽天SKUなし（楽天=表示/編集可・Yahoo=手動）</span>';
-  else html=L([['g','〜2か月'],['y','2か月〜'],['o','半年〜'],['r','1年〜'],['u','不明']]);
+  else html=L([['g','〜2か月'],['y','2か月〜'],['o','半年〜'],['r','1年〜'],['u','不明']])+'<span>　色＝🕐売れてない期間 / 数字＝価格</span>';
   document.getElementById('legend').innerHTML=html;
 }
 
