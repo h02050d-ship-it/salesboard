@@ -53,6 +53,12 @@
   select,.search input{font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 11px}
   .tbtn{font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 13px;cursor:pointer;white-space:nowrap}
   .tbtn:hover{border-color:var(--accent);color:var(--accent)}
+  /* 楽天 手動反映＝要対応アラート。塗り＋点滅で埋もれさせない */
+  .rktodo-alert{color:#fff!important;background:#d9480f!important;border:0!important;font-size:13.5px;font-weight:900;padding:9px 15px;box-shadow:0 3px 10px rgba(217,72,15,.45);animation:rkpulse 1.4s ease-in-out infinite;position:relative}
+  .rktodo-alert:hover{color:#fff!important;background:#bf400d!important;filter:brightness(1.05)}
+  .rktodo-alert .rkbadge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;margin:0 2px;border-radius:11px;background:#fff;color:#d9480f;font-weight:900;font-size:12.5px;vertical-align:middle}
+  @keyframes rkpulse{0%,100%{box-shadow:0 3px 10px rgba(217,72,15,.45)}50%{box-shadow:0 0 0 5px rgba(217,72,15,.18),0 3px 12px rgba(217,72,15,.55)}}
+  @media (prefers-reduced-motion:reduce){.rktodo-alert{animation:none}}
   .tchk{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;white-space:nowrap}
   .tchk input{margin:0;cursor:pointer;accent-color:var(--accent)}
   .thide{display:inline-flex;align-items:center;gap:10px;font-size:12px;font-weight:700;color:var(--sub);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;white-space:nowrap}
@@ -323,6 +329,7 @@
     <button data-mode="price">💴 価格</button>
     <button data-mode="point">⭐ ポイント</button>
   </div>
+  <button id="rkTodoBtn" class="tbtn rktodo-alert" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none">⚠️ 楽天 未反映 <span class="rkbadge" id="rkTodoN">0</span>件 → 要手動更新</button>
   <select id="sortSel">
     <option value="stock">並び: 在庫が多い順</option>
     <option value="order">並び: 在庫切れが近い順</option>
@@ -344,7 +351,6 @@
   <button id="wsBtn" class="tbtn" title="付売・市売（卸）価格表">📋 付売・市売</button>
   <button id="pchgBtn" class="tbtn" title="値下げ・価格変更した商品の経過日数と、その後の売れ行きを確認">💴 値下げ管理</button>
   <a id="sheetBtn" class="tbtn" target="_blank" rel="noopener" title="連動している在庫スプレッドシートを開く" style="text-decoration:none;display:none">📊 スプシ ↗</a>
-  <button id="rkTodoBtn" class="tbtn" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none;border-color:#e0a96d;color:var(--o-ink);font-weight:800">🛒 楽天 手動反映 <b id="rkTodoN">0</b>件</button>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
   <button id="mmBtn" class="tbtn" title="Yahoo出品あり・楽天出品なしの規格を一覧印刷">🛒 楽天未掲載</button>
   <div class="spacer"></div>
