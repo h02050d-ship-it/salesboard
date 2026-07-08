@@ -92,6 +92,8 @@
   .cell:hover{transform:translateY(-1px);box-shadow:0 3px 10px rgba(60,45,25,.16);border-color:rgba(0,0,0,.12)}
   .cell .age{font-size:12.5px;font-weight:800;line-height:1}
   .cell .stk{font-size:10px;margin-top:3px;opacity:.85;font-weight:700}
+  .ptag{position:absolute;top:2px;right:3px;font-size:8.5px;font-weight:800;line-height:1;padding:1.5px 3px;border-radius:5px;color:#fff}
+  .ptag.dn{background:#c0392b} .ptag.up{background:#1a7f37}
   .cell.empty{background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(120,110,95,.05) 5px,rgba(120,110,95,.05) 10px);cursor:default;border:1px dashed var(--line)}
   .cell.empty:hover{transform:none;box-shadow:none}
   .cell.edited::after{content:"";position:absolute;top:5px;right:5px;width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--card)}
@@ -227,6 +229,11 @@
   .hist-q{margin-left:auto;font-weight:800}
   .hist-q small{color:var(--sub);font-weight:600;font-size:10.5px}
   .hist-empty{font-size:11.5px;color:var(--sub);line-height:1.7;padding:6px 2px;text-align:center}
+  .pchg-latest{padding:10px 12px;border-radius:11px;background:var(--card);border:1px solid var(--line)}
+  .pchg-big{font-size:14px;font-weight:800;margin-bottom:3px}
+  .pchg-big b{font-size:18px}
+  .pchg-sub{font-size:13px;font-weight:700}
+  .pchg-sub2{font-size:11px;color:var(--sub);font-weight:700;margin-top:3px}
   .spin.sm{width:14px;height:14px;border-width:2px;display:inline-block;margin:0 6px 0 0;vertical-align:-2px}
 
   .savebar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(160%);transition:transform .25s;z-index:35;display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--card);padding:11px 14px 11px 20px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
@@ -335,6 +342,7 @@
   </div>
   <button id="rankBtn" class="tbtn" title="売れ筋・死に筋（滞留在庫）ランキング">📊 ランキング</button>
   <button id="wsBtn" class="tbtn" title="付売・市売（卸）価格表">📋 付売・市売</button>
+  <button id="pchgBtn" class="tbtn" title="値下げ・価格変更した商品の経過日数と、その後の売れ行きを確認">💴 値下げ管理</button>
   <a id="sheetBtn" class="tbtn" target="_blank" rel="noopener" title="連動している在庫スプレッドシートを開く" style="text-decoration:none;display:none">📊 スプシ ↗</a>
   <button id="rkTodoBtn" class="tbtn" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none;border-color:#e0a96d;color:var(--o-ink);font-weight:800">🛒 楽天 手動反映 <b id="rkTodoN">0</b>件</button>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
@@ -383,6 +391,22 @@
       <button class="x" id="wsX">✕</button>
     </div>
     <div class="rank-body" id="wsBody"></div>
+  </div>
+</div>
+
+<!-- 値下げ・価格変更 管理モーダル -->
+<div class="rank-modal" id="pchgModal">
+  <div class="rank-box">
+    <div class="rkh">
+      <h3>💴 値下げ・価格変更 管理</h3>
+      <div class="rkseg" id="pchgSeg">
+        <button data-f="down" class="on">📉 値下げのみ</button>
+        <button data-f="all">全変更</button>
+      </div>
+      <button class="x" id="pchgX" style="margin-left:auto">✕</button>
+    </div>
+    <div class="rank-note" id="pchgNote"></div>
+    <div class="rank-body" id="pchgBody"></div>
   </div>
 </div>
 
@@ -803,7 +827,12 @@ function cardHTML(g,mode){
       else if(mode==='order'){ if(reorderExcluded(g)){ cls='bg-u'; main='対象外'; } else { const dl=cellDaysLeftC(cgi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); } }
       else if(mode==='point'){ if(!c.rakuten){ cls='bg-u'; main='—'; } else { const rt=rkPointFor(c); main=(rt==null?'…':rt+'倍'); cls=(rt!=null&&rt>1)?'bg-g':'bg-u'; } }
       else { cls='bg-'+bucket(c.combined); main=ageShort(c.combined); }
-      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'"><span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
+      let tag='';
+      if(mode==='price' && c.pchg && c.pchg.latest && c.pchg.latest.days<=90){
+        const pl=c.pchg.latest, dn=pl.diff<0;
+        tag='<span class="ptag '+(dn?'dn':'up')+'" title="'+pl.date+' '+yen(pl.old)+'→'+yen(pl.new)+'">'+(dn?'▼':'▲')+pl.days+'日</span>';
+      }
+      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'">'+tag+'<span class="age">'+main+'</span><span class="stk">在庫 '+sDisp+'</span></div></td>';
     }).join('');
     return '<tr><th>'+L+bd+'</th>'+tds+'</tr>';
   }).join('');
@@ -947,6 +976,7 @@ function openDrawer(gi,key){
     '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
    + mallHTML('Yahoo!','yh',c.yahoo,'yahoo') + mallHTML('楽天','rk',c.rakuten,'rakuten')
    + salesBlock
+   + pchgBlock(g,c)
    + grossBlock(g,c,py)
    + sparkBlock(c.spark)
    + histBlock
@@ -1172,6 +1202,84 @@ function renderSalesTrend(body,note){
 document.getElementById('rankBtn').onclick=openRank;
 document.getElementById('rkX').onclick=closeRank;
 document.getElementById('rankModal').onclick=(e)=>{ if(e.target.id==='rankModal') closeRank(); };
+
+/* ===== 💴 値下げ・価格変更 管理 ===== */
+let PLOG=null, PLOG_LOADING=null;                       // 価格変更ログ（全履歴・ドロワー全履歴用）
+function cellPchgKey(g,c){ return [g.quality,g.group,g.type,c.length,c.grade].join('|'); }
+function pchgArrow(diff){ return diff<0?'📉 値下げ':(diff>0?'📈 値上げ':'価格変更'); }
+function pchgColor(diff){ return diff<0?'var(--r-ink,#c0392b)':(diff>0?'#1a7f37':'var(--ink)'); }
+// ドロワー内：最新の価格変更＋経過日数（履歴シート由来・ボード同梱）
+function pchgBlock(g,c){
+  const p=c.pchg&&c.pchg.latest;
+  if(!p) return '<div class="hist"><div class="et">💴 価格変更履歴</div><div class="hist-empty">価格変更の記録なし</div></div>';
+  const ago=p.days<=0?'今日':(p.days+'日前');
+  const key=cellPchgKey(g,c).replace(/"/g,'');
+  return '<div class="hist"><div class="et">💴 価格変更履歴</div>'
+    +'<div class="pchg-latest">'
+    +'<div class="pchg-big"><b>'+ago+'</b>に '+pchgArrow(p.diff)+'</div>'
+    +'<div class="pchg-sub">'+yen(p.old)+' → <b>'+yen(p.new)+'</b> <span style="color:'+pchgColor(p.diff)+';font-weight:800">('+(p.diff>0?'+':'')+yen(p.diff)+')</span></div>'
+    +'<div class="pchg-sub2">'+p.date+' 変更'+((c.pchg.count>1)?(' ・ 累計 '+c.pchg.count+' 回'):'')+'</div>'
+    +'</div>'
+    +'<button class="btn ghost" style="margin-top:8px;width:100%" data-pk="'+key+'" onclick="showPchgFull(this)">この規格の全履歴を見る</button>'
+    +'<div class="pchg-full" style="margin-top:8px"></div></div>';
+}
+async function ensurePlog(){
+  if(PLOG) return PLOG;
+  if(SOURCE!=='live') return (PLOG=[]);
+  if(PLOG_LOADING) return PLOG_LOADING;
+  PLOG_LOADING=(async()=>{
+    try{ const r=await fetch(GAS_URL+'?api=pricelog&'+authQS()); const j=await r.json();
+      PLOG=(j&&j.ok&&Array.isArray(j.items))?j.items:[]; }
+    catch(e){ PLOG=[]; }
+    PLOG_LOADING=null; return PLOG;
+  })();
+  return PLOG_LOADING;
+}
+async function showPchgFull(btn){
+  const key=btn.getAttribute('data-pk'), box=btn.nextElementSibling;
+  if(!box) return;
+  if(box.dataset.open==='1'){ box.innerHTML=''; box.dataset.open=''; btn.textContent='この規格の全履歴を見る'; return; }
+  box.innerHTML='<div class="hist-empty"><span class="spin sm"></span> 履歴を取得中…</div>';
+  const log=await ensurePlog();
+  const rows=log.filter(x=>x.key===key);
+  box.dataset.open='1'; btn.textContent='全履歴を閉じる';
+  if(!rows.length){ box.innerHTML='<div class="hist-empty">記録された変更はこの1件のみ（またはログ範囲外）です。</div>'; return; }
+  box.innerHTML=rows.map(x=>
+    '<div class="hist-row"><span class="hist-d">'+x.date+'</span>'
+    +'<span class="hist-q">'+yen(x.old)+' → <b>'+yen(x.new)+'</b> <span style="color:'+pchgColor(x.diff)+';font-weight:800">('+(x.diff>0?'+':'')+yen(x.diff)+')</span></span>'
+    +'<span class="hist-p" style="margin-left:auto;color:var(--sub)">'+x.days+'日前</span></div>').join('');
+}
+let pchgFilter='down';
+function openPchg(){ document.getElementById('pchgModal').classList.add('show'); ensurePlog(); renderPchg(); }
+function closePchg(){ document.getElementById('pchgModal').classList.remove('show'); }
+function renderPchg(){
+  const body=document.getElementById('pchgBody'), note=document.getElementById('pchgNote');
+  if(SOURCE!=='live'){ body.innerHTML='<div class="rank-empty">ログインして実在庫に接続すると価格変更履歴を表示します。</div>'; note.textContent=''; return; }
+  // ボード同梱の最新変更（規格ごと1件）＝経過日数＋その後の売れ行きで一覧
+  let rows=scanCells().filter(r=>r.c.pchg&&r.c.pchg.latest).map(r=>({r, p:r.c.pchg.latest}));
+  if(pchgFilter==='down') rows=rows.filter(x=>x.p.diff<0);
+  rows.sort((a,b)=>a.p.days-b.p.days);   // 直近に変更したものから
+  note.innerHTML=(pchgFilter==='down')
+    ? '値下げした規格を<b>変更が新しい順</b>に。値下げ後の売れ行き（直近30日）で効果を確認できます。伸びていなければ更なる値下げ・出品見直しの検討を。'
+    : 'すべての価格変更を新しい順に。📉赤=値下げ / 📈緑=値上げ。行をタップで詳細ドロワーへ。';
+  if(!rows.length){ body.innerHTML='<div class="rank-empty">'+(pchgFilter==='down'?'値下げの記録はありません。':'価格変更の記録はありません。')+'</div>'; return; }
+  body.innerHTML=rows.map(({r,p})=>{
+    const ago=p.days<=0?'今日':(p.days+'日前');
+    const sold=(+r.c.sold30||0), soldCls=sold>0?'':'style="color:var(--r-ink,#c0392b);font-weight:800"';
+    const soldTxt=sold>0?(sold+'枚 売れた'):'0枚（動きなし）';
+    const infoStk=r.infinite?'在庫∞':(r.stock+'束');
+    return '<div class="rrow" data-gi="'+r.gi+'" data-k="'+r.key+'">'
+      +'<div class="ri" style="flex:1"><div class="t">'+r.name+'　'+r.length+'/'+r.grade+'</div>'
+      +'<div class="s">'+p.date+' ・ '+yen(p.old)+' → <b>'+yen(p.new)+'</b> <span style="color:'+pchgColor(p.diff)+';font-weight:800">('+(p.diff>0?'+':'')+yen(p.diff)+')</span>'+(r.c.pchg.count>1?' ・ 累計'+r.c.pchg.count+'回':'')+'</div></div>'
+      +'<div class="ri" style="text-align:right;min-width:120px"><div class="t"><b>'+ago+'</b></div>'
+      +'<div class="s" '+soldCls+'>変更後30日 '+soldTxt+' ・ '+infoStk+'</div></div></div>';
+  }).join('');
+  body.querySelectorAll('.rrow').forEach(el=>el.onclick=()=>{ closePchg(); openDrawer(+el.dataset.gi,el.dataset.k); });
+}
+document.getElementById('pchgBtn').onclick=openPchg;
+document.getElementById('pchgX').onclick=closePchg;
+document.getElementById('pchgModal').onclick=(e)=>{ if(e.target.id==='pchgModal') closePchg(); };
+document.querySelectorAll('#pchgSeg button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('#pchgSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); pchgFilter=b.dataset.f; renderPchg(); });
 document.querySelectorAll('#rkSeg button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('#rkSeg button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); rankState.metric=b.dataset.rk; renderRank(); });
 document.querySelectorAll('#rkPer button').forEach(b=>b.onclick=()=>{ document.querySelectorAll('#rkPer button').forEach(x=>x.classList.remove('on')); b.classList.add('on'); rankState.per=+b.dataset.per; renderRank(); });
 document.getElementById('kpiOrder').onclick=()=>{
