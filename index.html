@@ -710,6 +710,7 @@ function buildRiskRows(){
   return Object.values(byKey).map(s=>{
     if(s.daily<=0) return null;
     const r=s.list[0];
+    if(isReorderSnoozed(r.g,r.c)) return null;   // 見送り中は発注帯からも除外（在庫表非表示と連動）
     const dl=Math.floor(Math.max(0,r.stock*(BUNDLE[r.length]||1)-(+r.c.reserved||0))/s.daily);   // 引当分は販売不可
     const shared=s.list.length>1;
     return {gi:r.gi, key:r.key, dl:dl, stock:r.stock,
@@ -722,19 +723,19 @@ function reorderSnoozeBlock(g,c){
   if(reorderExcluded(g)||c.infinite) return '';   // 発注対象外・無限在庫は対象外
   const until=REORDER_SNOOZE&&REORDER_SNOOZE[reorderSnoozeKey(g,c)];
   if(until){
-    return '<div class="snz on"><div class="et">🙈 在庫表から非表示中</div>'
-      +'<div class="snz-cur"><b>'+until+'</b> まで、この規格を在庫表の一覧から隠しています。</div>'
-      +'<button class="btn ghost" style="margin-top:8px;width:100%" onclick="snoozeReorder(0)">🔔 表示に戻す</button></div>';
+    return '<div class="snz on"><div class="et">🙈 見送り中（在庫表・通知とも非表示）</div>'
+      +'<div class="snz-cur"><b>'+until+'</b> まで、在庫表から隠し、発注アラート・通知（メール/タスク）にも出しません。</div>'
+      +'<button class="btn ghost" style="margin-top:8px;width:100%" onclick="snoozeReorder(0)">🔔 表示・通知に戻す</button></div>';
   }
-  return '<div class="snz"><div class="et">🙈 在庫表からしばらく隠す</div>'
-    +'<div class="snz-note">補充予定がない規格を、在庫表の一覧から一定期間だけ非表示にします。※発注アラート・大樹への通知（メール/タスク）はこれまで通り出ます。</div>'
-    +'<div class="snz-btns"><button class="btn ghost" onclick="snoozeReorder(7)">1週間 非表示</button><button class="btn ghost" onclick="snoozeReorder(30)">1ヶ月 非表示</button></div></div>';
+  return '<div class="snz"><div class="et">🙈 しばらく見送る（在庫表＋通知を止める）</div>'
+    +'<div class="snz-note">補充予定がない規格を、在庫表の一覧から隠し、あわせて発注アラート・大樹への通知（メール/タスク）からも一定期間 外します。</div>'
+    +'<div class="snz-btns"><button class="btn ghost" onclick="snoozeReorder(7)">1週間 見送り</button><button class="btn ghost" onclick="snoozeReorder(30)">1ヶ月 見送り</button></div></div>';
 }
 async function snoozeReorder(days){
   if(!cur) return;
   const g=cur.g,c=cur.c, key=reorderSnoozeKey(g,c);
   const tag=(g.name||'').replace(/\s*120mm幅/,'')+' '+c.length+'/'+c.grade;
-  if(SOURCE!=='live'){ alert('【サンプル】本番では在庫表から'+(days?days+'日間 非表示':'非表示を解除')+'します。'); return; }
+  if(SOURCE!=='live'){ alert('【サンプル】本番では'+(days?days+'日間 見送り（在庫表非表示＋通知停止）':'見送りを解除')+'します。'); return; }
   try{
     const cr=creds();
     const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:cr.email,pass:cr.pass,reorderSnooze:{key:key,days:days,tag:tag}})});
@@ -742,8 +743,8 @@ async function snoozeReorder(days){
     if(j&&j.ok){
       REORDER_SNOOZE=j.reorderSnooze||{};
       const lbl=days===7?'1週間':(days===30?'1ヶ月':days+'日');
-      toast(days>0?('🙈 在庫表から'+lbl+'非表示にしました（'+(REORDER_SNOOZE[key]||'')+'まで／🙈ボタンで戻せます）'):'🔔 表示に戻しました');
-      closeDrawer(); render();
+      toast(days>0?('🙈 '+lbl+'見送りにしました（'+(REORDER_SNOOZE[key]||'')+'まで・在庫表と通知から除外／🙈ボタンで戻せます）'):'🔔 表示・通知に戻しました');
+      closeDrawer(); renderReorder(getLeadTime()); render();
     } else alert('失敗: '+((j&&j.error)||'不明'));
   }catch(e){ alert('通信失敗: '+e.message); }
 }
