@@ -1128,6 +1128,14 @@ async function applyEdits(){
     alert('【サンプル】'+keys.length+'件の変更を確認しました。\n本番（ライブ接続）では スプシ更新＋Yahoo/楽天へ反映します。');
     return;
   }
+  // 楽天ポイント倍率の変更は稀で高影響（在庫束数と取り違えやすい）→ 適用前に必ず確認
+  const ptChanges=updates.filter(u=>'pointRakuten'in u);
+  if(ptChanges.length){
+    const lines=ptChanges.map(u=>'・'+u.typeBase+' '+u.length+'/'+u.grade+' → 楽天ポイント '+u.pointRakuten+'倍').join('\n');
+    if(!confirm('⭐ 楽天ポイント倍率の変更が含まれます。よろしいですか？\n※在庫（束数）や価格と取り違えていないか確認してください。\n\n'+lines)){
+      return;   // 中止（編集は保留のまま残す）
+    }
+  }
   const btn=document.getElementById('sbApply'); btn.disabled=true; btn.textContent='同期中…';
   try{
     // CORSプリフライト回避のため text/plain で送る（GASは postData.contents を読む）
