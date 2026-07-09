@@ -657,7 +657,7 @@ function startAutoRefresh(){
 }
 document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible' && canBackgroundRefresh()) fetchLive({silent:true}); });
 function saveCache(j){
-  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon,sheetUrl:j.sheetUrl,costs:j.costs})); }catch(e){}
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon,sheetUrl:j.sheetUrl,costs:j.costs,reorderSnooze:j.reorderSnooze})); }catch(e){}
 }
 function loadCache(){ try{ const s=localStorage.getItem(CACHE_KEY); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function gridError(msg){
@@ -751,6 +751,7 @@ async function snoozeReorder(days,btn){
     const j=await r.json();
     if(j&&j.ok){
       REORDER_SNOOZE=j.reorderSnooze||{};
+      try{ const cc=loadCache(); if(cc){ cc.reorderSnooze=REORDER_SNOOZE; localStorage.setItem(CACHE_KEY,JSON.stringify(cc)); } }catch(e){}   // 直後に更新しても一瞬も出さない
       const lbl=days===7?'1週間':(days===30?'1ヶ月':days+'日');
       toast(days>0?('🙈 '+lbl+'見送りにしました（'+(REORDER_SNOOZE[key]||'')+'まで・在庫表と通知から除外／🙈ボタンで戻せます）'):'🔔 表示・通知に戻しました');
       closeDrawer(); renderReorder(getLeadTime()); render();
