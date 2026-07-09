@@ -274,10 +274,14 @@
   .savebar .apply{background:var(--accent);color:#fff}
   .savebar .apply:disabled{opacity:.5}
   .savebar .undo{background:transparent;color:var(--card);opacity:.7;text-decoration:underline}
-  .btn{flex:1;padding:13px;border-radius:12px;border:0;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit}
+  .btn{flex:1;padding:13px;border-radius:12px;border:0;font-size:13.5px;font-weight:800;cursor:pointer;font-family:inherit;transition:transform .07s ease,filter .12s,box-shadow .12s;-webkit-tap-highlight-color:transparent}
+  .btn:hover{filter:brightness(1.04)}
+  .btn:active{transform:scale(.94);filter:brightness(.9)}
+  .btn.loading{pointer-events:none;opacity:.75}
   .btn.primary{background:var(--accent);color:#fff}
   .save-row{display:flex;gap:9px;margin-top:13px}
   .btn.ghost{background:var(--bg);color:var(--sub);border:1px solid var(--line);flex:0 0 auto;padding:13px 16px}
+  .snz-btns .btn:active{transform:scale(.94)}
 
   footer{max-width:1280px;margin:0 auto;padding:8px 22px;font-size:11px;color:var(--sub);line-height:1.7}
   .demo-ban{max-width:1280px;margin:14px auto 0;padding:11px 16px;background:#fff2cc22;border:1px solid #e0c34d55;border-radius:12px;font-size:12px;color:var(--ink);display:flex;gap:9px;align-items:center}
@@ -725,17 +729,22 @@ function reorderSnoozeBlock(g,c){
   if(until){
     return '<div class="snz on"><div class="et">🙈 見送り中（在庫表・通知とも非表示）</div>'
       +'<div class="snz-cur"><b>'+until+'</b> まで、在庫表から隠し、発注アラート・通知（メール/タスク）にも出しません。</div>'
-      +'<button class="btn ghost" style="margin-top:8px;width:100%" onclick="snoozeReorder(0)">🔔 表示・通知に戻す</button></div>';
+      +'<button class="btn ghost" style="margin-top:8px;width:100%" onclick="snoozeReorder(0,this)">🔔 表示・通知に戻す</button></div>';
   }
   return '<div class="snz"><div class="et">🙈 しばらく見送る（在庫表＋通知を止める）</div>'
     +'<div class="snz-note">補充予定がない規格を、在庫表の一覧から隠し、あわせて発注アラート・大樹への通知（メール/タスク）からも一定期間 外します。</div>'
-    +'<div class="snz-btns"><button class="btn ghost" onclick="snoozeReorder(7)">1週間 見送り</button><button class="btn ghost" onclick="snoozeReorder(30)">1ヶ月 見送り</button></div></div>';
+    +'<div class="snz-btns"><button class="btn ghost" onclick="snoozeReorder(7,this)">1週間 見送り</button><button class="btn ghost" onclick="snoozeReorder(30,this)">1ヶ月 見送り</button></div></div>';
 }
-async function snoozeReorder(days){
+async function snoozeReorder(days,btn){
   if(!cur) return;
   const g=cur.g,c=cur.c, key=reorderSnoozeKey(g,c);
   const tag=(g.name||'').replace(/\s*120mm幅/,'')+' '+c.length+'/'+c.grade;
-  if(SOURCE!=='live'){ alert('【サンプル】本番では'+(days?days+'日間 見送り（在庫表非表示＋通知停止）':'見送りを解除')+'します。'); return; }
+  if(btn){   // 押した瞬間のフィードバック（POST完了まで無反応に見えないように）
+    const row=btn.closest('.snz'); if(row) row.querySelectorAll('.btn').forEach(b=>b.classList.add('loading'));
+    btn.dataset.label=btn.innerHTML;
+    btn.innerHTML='<span class="spin sm"></span>'+(days>0?'見送り中…':'解除中…');
+  }
+  if(SOURCE!=='live'){ if(btn){btn.classList.remove('loading');btn.innerHTML=btn.dataset.label||btn.innerHTML;} alert('【サンプル】本番では'+(days?days+'日間 見送り（在庫表非表示＋通知停止）':'見送りを解除')+'します。'); return; }
   try{
     const cr=creds();
     const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:cr.email,pass:cr.pass,reorderSnooze:{key:key,days:days,tag:tag}})});
@@ -745,9 +754,10 @@ async function snoozeReorder(days){
       const lbl=days===7?'1週間':(days===30?'1ヶ月':days+'日');
       toast(days>0?('🙈 '+lbl+'見送りにしました（'+(REORDER_SNOOZE[key]||'')+'まで・在庫表と通知から除外／🙈ボタンで戻せます）'):'🔔 表示・通知に戻しました');
       closeDrawer(); renderReorder(getLeadTime()); render();
-    } else alert('失敗: '+((j&&j.error)||'不明'));
-  }catch(e){ alert('通信失敗: '+e.message); }
+    } else { restoreSnzBtn_(btn); alert('失敗: '+((j&&j.error)||'不明')); }
+  }catch(e){ restoreSnzBtn_(btn); alert('通信失敗: '+e.message); }
 }
+function restoreSnzBtn_(btn){ if(!btn) return; const row=btn.closest('.snz'); if(row) row.querySelectorAll('.btn').forEach(b=>b.classList.remove('loading')); if(btn.dataset.label!=null) btn.innerHTML=btn.dataset.label; }
 // 残日数：∞=無限在庫 / null=販売実績なし（推定不能） / 数値=あと何日で在庫切れ
 function cellDaysLeft(gi,c){
   if(c.infinite) return Infinity;
