@@ -81,7 +81,14 @@
   .legend{display:flex;gap:4px;flex-wrap:wrap;align-items:center;font-size:10.5px;color:var(--sub)}
   .legend i{display:inline-block;width:13px;height:13px;border-radius:3px;margin-right:3px;vertical-align:-2px;border:1px solid rgba(0,0,0,.08)}
 
-  .grid{max-width:1600px;margin:0 auto;padding:14px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px;align-items:start}
+  .grid{max-width:1760px;margin:0 auto;padding:14px 20px;display:block}
+  /* A級=左(コンパクト) / B級=右(広め)を横並び。各カラム内のカードは横並び(折り返し) */
+  .board-2col{display:grid;grid-template-columns:minmax(360px,440px) 1fr;gap:20px;align-items:start}
+  .bcol{min-width:0}
+  .bcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:14px}
+  .board-2col .section{margin-top:0}
+  .board-sub{margin-top:22px}
+  @media(max-width:1000px){ .board-2col{grid-template-columns:1fr} }
   .section{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:11px 18px;border-radius:13px;box-shadow:var(--shadow);border:1px solid var(--line);margin-top:18px}
   .section .sec-l{display:flex;align-items:center;gap:12px}
   .section .sec-q{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;color:#fff;font-weight:800;font-size:16px}
@@ -874,11 +881,11 @@ function render(){
     ...groups.filter(g=>g.quality==='B'&&isSub(g)),
     ...groups.filter(g=>g.quality==='A'&&isSub(g)),
   ];
+  const secBlock=(q,gs,title,cls)=> gs.length ? (sectionBanner(q,gs,title,cls)+'<div class="bcards">'+gs.map(g=>cardHTML(g,mode)).join('')+'</div>') : '';
   let html='';
-  if(aG.length) html+=sectionBanner('A',aG)+aG.map(g=>cardHTML(g,mode)).join('');
-  if(bG.length) html+=sectionBanner('B',bG,'B級品')+bG.map(g=>cardHTML(g,mode)).join('');
-  if(subG.length) html+=sectionBanner('副',subG,'オリジナル・105幅（副産物）','s')+subG.map(g=>cardHTML(g,mode)).join('');
-  if(!html) html='<div style="grid-column:1/-1;text-align:center;color:var(--sub);padding:60px">該当なし</div>';
+  if(aG.length||bG.length) html+='<div class="board-2col"><div class="bcol">'+secBlock('A',aG,'A級品')+'</div><div class="bcol">'+secBlock('B',bG,'B級品')+'</div></div>';
+  if(subG.length) html+='<div class="board-sub">'+secBlock('副',subG,'オリジナル・105幅（副産物）','s')+'</div>';
+  if(!html) html='<div style="text-align:center;color:var(--sub);padding:60px">該当なし</div>';
   const grid=document.getElementById('grid');
   grid.innerHTML=html;
   grid.querySelectorAll('.cell:not(.empty)').forEach(el=>el.onclick=()=>openDrawer(+el.dataset.gi,el.dataset.k));
