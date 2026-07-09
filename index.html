@@ -96,9 +96,6 @@
   .gcard h2{font-size:13.5px;font-weight:800;padding:12px 15px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(122,92,62,.07),transparent)}
   .gcard h2 .q{font-size:10px;font-weight:800;color:#fff;background:var(--accent);padding:2px 7px;border-radius:6px}
   .gcard h2 .q.b{background:var(--accent2)}
-  .gcard h2 .w-std{font-size:10.5px;font-weight:500;color:var(--sub)}   /* 120mm幅=薄く小さく */
-  .gcard h2 .w-sp{font-size:12px;font-weight:800;background:var(--y);color:var(--y-ink);padding:1px 6px;border-radius:5px}  /* 特別幅=黄色背景 */
-  .gcard h2 .cut{font-weight:800}   /* カット（種別）=太字 */
   .gcard h2 .stk{margin-left:auto;font-size:11px;font-weight:700;color:var(--sub)}
   table{width:100%;border-collapse:collapse;font-size:12px}
   th,td{padding:0;text-align:center}
@@ -889,11 +886,7 @@ function sectionBanner(q,groups,title){
     + '<div class="sec-kpi">'+groups.length+'グループ ・ '+cards+'規格 ・ 在庫計 '+stk.toLocaleString()+'束</div></div>';
 }
 function cardHTML(g,mode){
-  const wcls=/^120/.test(g.width)?'w-std':'w-sp';   // 120=薄く小さく／それ以外の特別幅=黄色背景
-  const head='<h2><span class="q '+(g.quality==='B'?'b':'')+'">'+g.quality+'級</span>'
-    +'<span class="'+wcls+'">'+g.width+'</span> '
-    +'<span class="cut">'+g.type+'</span>'
-    +'<span class="stk">在庫計 '+g.stockSum+'束</span></h2>';
+  const head='<h2><span class="q '+(g.quality==='B'?'b':'')+'">'+g.quality+'級</span>'+g.width+' '+g.type+'<span class="stk">在庫計 '+g.stockSum+'束</span></h2>';
   const th='<thead><tr><th class="corner">長さ＼等級</th>'+g.grades.map(G=>'<th>'+G+'</th>').join('')+'</tr></thead>';
   const rows=g.lens.map(L=>{
     const bd=BUNDLE[L]?(' <small>('+BUNDLE[L]+')</small>'):'';
