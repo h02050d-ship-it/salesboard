@@ -252,6 +252,15 @@
   .pchg-big b{font-size:18px}
   .pchg-sub{font-size:13px;font-weight:700}
   .pchg-sub2{font-size:11px;color:var(--sub);font-weight:700;margin-top:3px}
+  .snz{margin-top:14px;padding:12px 14px;border:1px dashed var(--line);border-radius:13px;background:var(--bg)}
+  .snz.on{border-style:solid;border-color:#9c4a0055;background:var(--o)}
+  .snz .et{font-size:12px;font-weight:800;color:var(--sub);margin-bottom:6px}
+  .snz.on .et{color:var(--o-ink)}
+  .snz-note{font-size:11px;color:var(--sub);line-height:1.6;margin-bottom:9px}
+  .snz-cur{font-size:12.5px;font-weight:700;color:var(--o-ink);line-height:1.6}
+  .snz-btns{display:flex;gap:9px}
+  .snz-btns .btn{flex:1}
+  .snz-tag{font-size:11px;font-weight:800;color:var(--o-ink);background:var(--o);padding:2px 8px;border-radius:999px;margin-left:6px;cursor:default}
   .spin.sm{width:14px;height:14px;border-width:2px;display:inline-block;margin:0 6px 0 0;vertical-align:-2px}
 
   .savebar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(160%);transition:transform .25s;z-index:35;display:flex;align-items:center;gap:14px;background:var(--ink);color:var(--card);padding:11px 14px 11px 20px;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
@@ -518,6 +527,9 @@ let SOURCE='';         // 'live' | 'sample'
 let MALLBASE={yahoo:'',rakuten:''};   // 商品ページURLのベース
 let COUNTSHEET=[];                     // 在庫チェック表の構造（ボード読込時に取得＝即印刷）
 let COSTS={};                          // 原価設定（品質|等級 → {cube:㎥単価, add:加工費/枚}）粗利ビュー用
+let REORDER_SNOOZE={};                  // 発注アラート見送り中 key→再表示日('M/d')。GAS reorderKeyOf_ と同一キー
+function reorderSnoozeKey(g,c){ return (c.coord?('c|'+c.coord):('s|'+g.quality+'|'+g.width+'|'+g.type+'|'+c.length+'|'+c.grade)); }
+function isReorderSnoozed(g,c){ return !!(REORDER_SNOOZE && REORDER_SNOOZE[reorderSnoozeKey(g,c)]); }
 const CACHE_KEY='hayazai_board_cache'; // 前回のボードデータ（開いた瞬間に即表示する用）
 let refreshTimer=null;                  // 定期裏更新タイマー
 const ckey=(gi,L,G)=>gi+'|'+L+'|'+G;
@@ -610,6 +622,7 @@ function applyData(j,fromCache){
   MALLBASE.yahoo=j.yahooBase||''; MALLBASE.rakuten=j.rakutenBase||'';
   COUNTSHEET=j.countsheet||[];
   COSTS=j.costs||COSTS;
+  REORDER_SNOOZE=j.reorderSnooze||{};   // 発注アラート見送り中 key→再表示日
   const sb=document.getElementById('sheetBtn'); if(sb&&j.sheetUrl){ sb.href=j.sheetUrl; sb.style.display=''; }
   if(typeof j.rktodo==='number'){ RKTODO_N=j.rktodo; updateRkTodoBadge(); }
   SOURCE='live';
@@ -692,12 +705,43 @@ function buildRiskRows(){
   return Object.values(byKey).map(s=>{
     if(s.daily<=0) return null;
     const r=s.list[0];
+    if(isReorderSnoozed(r.g,r.c)) return null;   // 発注アラート見送り中は帯から除外
     const dl=Math.floor(Math.max(0,r.stock*(BUNDLE[r.length]||1)-(+r.c.reserved||0))/s.daily);   // 引当分は販売不可
     const shared=s.list.length>1;
     return {gi:r.gi, key:r.key, dl:dl, stock:r.stock,
       label: shared ? (r.g.quality+'級 '+r.length+'/'+r.grade+'（原板共通）')
                     : (r.name.replace(/\s*120mm幅/,'')+' '+r.length+'/'+r.grade)};
   }).filter(Boolean);
+}
+// ドロワー：在庫切れでも一定期間 発注アラート/タスク/メールに出さない「見送り」ボタン
+function reorderSnoozeBlock(g,c){
+  if(reorderExcluded(g)||c.infinite) return '';   // 発注対象外・無限在庫は見送り不要
+  const until=REORDER_SNOOZE&&REORDER_SNOOZE[reorderSnoozeKey(g,c)];
+  if(until){
+    return '<div class="snz on"><div class="et">🔕 発注アラート 見送り中</div>'
+      +'<div class="snz-cur"><b>'+until+'</b> まで、この規格を発注アラート・タスク・メールに出しません。</div>'
+      +'<button class="btn ghost" style="margin-top:8px;width:100%" onclick="snoozeReorder(0)">🔔 見送りを解除して戻す</button></div>';
+  }
+  return '<div class="snz"><div class="et">🔕 在庫切れでもしばらく通知しない</div>'
+    +'<div class="snz-note">補充予定がない規格を、発注アラート・タスク・大樹への通知メールから一定期間だけ隠します（在庫マスには残ります）。</div>'
+    +'<div class="snz-btns"><button class="btn ghost" onclick="snoozeReorder(7)">1週間 見送り</button><button class="btn ghost" onclick="snoozeReorder(30)">1ヶ月 見送り</button></div></div>';
+}
+async function snoozeReorder(days){
+  if(!cur) return;
+  const g=cur.g,c=cur.c, key=reorderSnoozeKey(g,c);
+  const tag=(g.name||'').replace(/\s*120mm幅/,'')+' '+c.length+'/'+c.grade;
+  if(SOURCE!=='live'){ alert('【サンプル】本番では発注アラートから'+(days?days+'日間 見送り':'見送り解除')+'します。'); return; }
+  try{
+    const cr=creds();
+    const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:cr.email,pass:cr.pass,reorderSnooze:{key:key,days:days,tag:tag}})});
+    const j=await r.json();
+    if(j&&j.ok){
+      REORDER_SNOOZE=j.reorderSnooze||{};
+      const lbl=days===7?'1週間':(days===30?'1ヶ月':days+'日');
+      toast(days>0?('🔕 '+lbl+'見送りにしました（再表示 '+(REORDER_SNOOZE[key]||'')+'）'):'🔔 見送りを解除しました');
+      closeDrawer(); renderReorder(getLeadTime()); render();
+    } else alert('失敗: '+((j&&j.error)||'不明'));
+  }catch(e){ alert('通信失敗: '+e.message); }
 }
 // 残日数：∞=無限在庫 / null=販売実績なし（推定不能） / 数値=あと何日で在庫切れ
 function cellDaysLeft(gi,c){
@@ -883,10 +927,12 @@ function renderReorder(LT){
   if(SOURCE!=='live'){ box.classList.add('hidden'); return; }
   // リスク＝無限・実績なしを除き、残日数 ≤ LT*2 のものを近い順に
   const risk=buildRiskRows().filter(r=>r.dl<=LT*2).sort((a,b)=>a.dl-b.dl);
+  const snzN=REORDER_SNOOZE?Object.keys(REORDER_SNOOZE).length:0;
+  const snzNote=snzN?' <span class="snz-tag" title="発注アラートを一定期間 見送り中の規格。各規格のドロワーで解除できます">🔕 見送り中 '+snzN+'件</span>':'';
   const ltCtl='<span class="lt">仕入リードタイム <input id="ltIn" type="number" inputmode="numeric" min="1" value="'+LT+'"> 日</span>';
   if(!risk.length){
     box.classList.remove('hidden');
-    box.innerHTML='<div class="rh"><span class="ok">✅ 在庫切れ間近の規格はありません</span>'+ltCtl+'</div>';
+    box.innerHTML='<div class="rh"><span class="ok">✅ 在庫切れ間近の規格はありません</span>'+snzNote+ltCtl+'</div>';
     wireLeadTime(); return;
   }
   const urgent=risk.filter(r=>r.dl<=LT).length;
@@ -901,7 +947,7 @@ function renderReorder(LT){
   const more=risk.length>8?'<button class="more" id="reMore">'+(reorderExpanded?'閉じる':'＋他'+(risk.length-8)+'件を表示')+'</button>':'';
   box.classList.remove('hidden');
   box.innerHTML='<div class="rh"><span class="cnt">🚨 '+risk.length+'規格</span>が在庫切れ間近'
-    +(urgent?'（うち<b>'+urgent+'件</b>がリードタイム内＝今すぐ手配）':'')+ltCtl+'</div>'
+    +(urgent?'（うち<b>'+urgent+'件</b>がリードタイム内＝今すぐ手配）':'')+snzNote+ltCtl+'</div>'
     +'<div class="chips">'+chips+'</div>'+more;
   box.querySelectorAll('.rchip').forEach(el=>el.onclick=()=>openDrawer(+el.dataset.gi,el.dataset.k));
   const mo=document.getElementById('reMore'); if(mo) mo.onclick=()=>{ reorderExpanded=!reorderExpanded; renderReorder(getLeadTime()); };
@@ -1002,6 +1048,7 @@ function openDrawer(gi,key){
     '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
    + mallHTML('Yahoo!','yh',c.yahoo,'yahoo') + mallHTML('楽天','rk',c.rakuten,'rakuten')
    + salesBlock
+   + reorderSnoozeBlock(g,c)
    + pchgBlock(g,c)
    + schgBlock(g,c)
    + grossBlock(g,c,py)
