@@ -947,9 +947,8 @@ function renderReorder(LT){
   const risk=buildRiskRows().filter(r=>r.dl<=LT*2).sort((a,b)=>a.dl-b.dl);
   const ltCtl='<span class="lt">仕入リードタイム <input id="ltIn" type="number" inputmode="numeric" min="1" value="'+LT+'"> 日</span>';
   if(!risk.length){
-    box.classList.remove('hidden');
-    box.innerHTML='<div class="rh"><span class="ok">✅ 在庫切れ間近の規格はありません</span>'+ltCtl+'</div>';
-    wireLeadTime(); return;
+    box.classList.add('hidden'); box.innerHTML='';   // 在庫切れ間近がゼロなら帯ごと非表示
+    return;
   }
   const urgent=risk.filter(r=>r.dl<=LT).length;
   const shown=reorderExpanded?risk:risk.slice(0,8);
