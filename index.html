@@ -383,6 +383,7 @@
   <button id="rankBtn" class="tbtn" title="売れ筋・死に筋（滞留在庫）ランキング">📊 ランキング</button>
   <button id="wsBtn" class="tbtn" title="付売・市売（卸）価格表">📋 付売・市売</button>
   <button id="pchgBtn" class="tbtn" title="値下げ・価格変更した商品の経過日数と、その後の売れ行きを確認">💴 値下げ管理</button>
+  <button id="zkBtn" class="tbtn" title="棚卸2回と月次の売上・仕入から、今日時点の全社在庫額を推定">📦 在庫推定</button>
   <a id="sheetBtn" class="tbtn" target="_blank" rel="noopener" title="連動している在庫スプレッドシートを開く" style="text-decoration:none;display:none">📊 スプシ ↗</a>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
   <button id="mmBtn" class="tbtn" title="Yahoo出品あり・楽天出品なしの規格を一覧印刷">🛒 楽天未掲載</button>
@@ -446,6 +447,20 @@
     </div>
     <div class="rank-note" id="pchgNote"></div>
     <div class="rank-body" id="pchgBody"></div>
+  </div>
+</div>
+
+<!-- 在庫推定モーダル -->
+<div class="rank-modal" id="zkModal">
+  <div class="rank-box">
+    <div class="rkh">
+      <h3>📦 在庫推定</h3>
+      <span id="zkUpd" style="font-size:12px;color:var(--sub);font-weight:700"></span>
+      <button id="zkRefresh" class="tbtn" style="margin-left:auto">🔄 再計算</button>
+      <button class="x" id="zkX">✕</button>
+    </div>
+    <div class="rank-note" id="zkNote"></div>
+    <div class="rank-body" id="zkBody"></div>
   </div>
 </div>
 
@@ -1434,7 +1449,92 @@ document.getElementById('kpiOrder').onclick=()=>{
   document.querySelector('#modeSeg button[data-mode="order"]').classList.add('on');
   document.getElementById('sortSel').value='order'; render(); window.scrollTo({top:0,behavior:'smooth'});
 };
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeRkTodo(); closeDrawer(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeRkTodo(); closeDrawer(); closeZk(); } });
+
+/* ===== 在庫推定（棚卸アンカー × 月次売上仕入ロールフォワード・zaiko.js） ===== */
+let ZK=null;
+const ZK_CACHE='hayazai_zaiko_cache';
+function zkYm(ym){ return Number(ym.slice(0,4))+'年'+Number(ym.slice(5,7))+'月'; }
+function zkMan(v){ const a=Math.abs(Number(v)||0); const s=(a>=10000)?(Math.round(a/10000).toLocaleString()+'万'):Math.round(a).toLocaleString(); return (v<0?'−':'')+s; }
+async function fetchZk(force){
+  const r=await fetch(GAS_URL+'?api=zaiko&'+authQS()+(force?'&fresh=1':''));
+  const j=await r.json();
+  if(j&&j.ok&&j.months){ ZK=j; try{localStorage.setItem(ZK_CACHE,JSON.stringify(j));}catch(e){} return j; }
+  throw new Error((j&&j.error)||'取得失敗');
+}
+function openZk(){
+  document.getElementById('zkModal').classList.add('show');
+  if(SOURCE!=='live'){ document.getElementById('zkBody').innerHTML='<div class="rank-empty">ログインして実在庫に接続すると在庫推定を表示します。</div>'; return; }
+  if(!ZK){ try{ const s=localStorage.getItem(ZK_CACHE); if(s){ const j=JSON.parse(s); if(j&&j.months) ZK=j; } }catch(e){} }
+  if(ZK) renderZk(); else document.getElementById('zkBody').innerHTML='<div class="rank-empty">計算中…（初回は10〜30秒かかることがあります）</div>';
+  fetchZk(false).then(renderZk).catch(err=>{ if(!ZK) document.getElementById('zkBody').innerHTML='<div class="rank-empty">取得に失敗しました: '+err.message+'（🔄再計算で再試行）</div>'; });
+}
+function closeZk(){ document.getElementById('zkModal').classList.remove('show'); }
+function renderZk(){
+  const d=ZK; if(!d) return;
+  document.getElementById('zkUpd').textContent='更新 '+ (d.updated||'');
+  document.getElementById('zkNote').innerHTML='年2回の実棚卸を起点に「<b>棚卸 ＋ 仕入 − 売上×原価率</b>」で毎月転がした<b>全社（工場＋倉庫＋市売預け）の推定在庫額</b>。集計表PDFが月次で入ると自動で確定値に置き換わります。';
+  const t=d.today||{};
+  const diff=t.diff||0, diffTxt=(diff<0?'−':'+')+yen(Math.abs(diff)).slice(0);
+  const rates=(d.intervals||[]).map(iv=>'<span title="'+iv.from+'→'+iv.to+'">'+iv.label.replace(/20(\d\d)\//g,'$1/')+': <b>'+(iv.rate*100).toFixed(1)+'%</b></span>').join('<span style="color:var(--sub)"> ／ </span>');
+  const card=(inner)=>'<div style="flex:1;min-width:210px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px">'+inner+'</div>';
+  let h='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">'
+    + card('<div style="font-size:12px;color:var(--sub);font-weight:700">📦 今日の推定在庫額</div>'
+      +'<div style="font-size:26px;font-weight:900;letter-spacing:.5px">'+yen(t.inv)+'</div>'
+      +'<div style="font-size:12px;color:var(--sub)">前回棚卸('+(t.anchorDate||'').slice(5).replace('-','/')+') '+yen(t.anchorTotal)+' から <b style="color:var(--ink)">'+diffTxt+'</b></div>')
+    + card('<div style="font-size:12px;color:var(--sub);font-weight:700">📐 原価率（棚卸2点から逆算）</div>'
+      +'<div style="font-size:26px;font-weight:900">'+((d.costRate||0)*100).toFixed(1)+'%</div>'
+      +'<div style="font-size:12px;color:var(--sub)">'+(d.rateSource||'')+' ・ 過去期: '+(rates||'—')+'</div>')
+    +'</div>';
+  // 月次ロールフォワード表
+  h+='<h4 style="margin:6px 0 6px">月次ロールフォワード（'+(t.anchorDate||'').replace(/-/g,'/')+' 実棚卸 '+yen(t.anchorTotal)+' 起点）</h4>';
+  h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap">'
+    +'<tr style="color:var(--sub);font-weight:700;text-align:right"><th style="text-align:left;padding:4px 6px">月</th><th style="padding:4px 6px">売上</th><th style="padding:4px 6px">仕入</th><th style="padding:4px 6px">売上原価</th><th style="padding:4px 6px">月末推定在庫</th><th style="padding:4px 6px;text-align:center">出所</th></tr>'
+    +(d.months||[]).map(m=>{
+      const src=(m.src==='PDF')?'<span style="color:#1e8e4e;font-weight:700">✅ 集計表</span>':'<span style="color:#b7791f;font-weight:700">⚠ 速報'+(m.partial?'(今月・日割り)':'')+'</span>';
+      return '<tr style="border-top:1px solid var(--line);text-align:right">'
+        +'<td style="text-align:left;padding:5px 6px;font-weight:700">'+zkYm(m.ym)+'</td>'
+        +'<td style="padding:5px 6px" title="'+yen(m.sales)+(m.liveAmt!=null?'（うち実測 '+yen(m.liveAmt)+'）':'')+'">'+zkMan(m.sales)+'</td>'
+        +'<td style="padding:5px 6px" title="'+yen(m.purchase)+'">'+zkMan(m.purchase)+'</td>'
+        +'<td style="padding:5px 6px;color:var(--sub)" title="売上×原価率">−'+zkMan(m.cogs)+'</td>'
+        +'<td style="padding:5px 6px;font-weight:900" title="'+yen(m.endInv)+'">'+zkMan(m.endInv)+'</td>'
+        +'<td style="padding:5px 6px;text-align:center;font-size:12px">'+src+'</td></tr>';
+    }).join('')+'</table></div>';
+  // 半期実棚卸トレンド＋今日の推定
+  const bars=(d.anchors||[]).map(a=>({label:a.date.slice(2,7).replace('-','/'), v:a.total, est:false}));
+  bars.push({label:'今日', v:t.inv||0, est:true});
+  const mx=Math.max.apply(null,bars.map(b=>b.v));
+  h+='<h4 style="margin:16px 0 6px">実棚卸の推移（半期）と今日の推定</h4>'
+    +'<div style="display:flex;align-items:flex-end;gap:6px;height:110px;padding:6px 2px;overflow-x:auto">'
+    + bars.map(b=>'<div style="flex:1;min-width:34px;display:flex;flex-direction:column;align-items:center;gap:3px" title="'+b.label+'：'+yen(b.v)+'">'
+      +'<div style="font-size:10px;color:var(--sub);font-weight:700">'+zkMan(b.v)+'</div>'
+      +'<div style="width:100%;height:'+Math.max(4,Math.round(b.v/mx*70))+'px;border-radius:4px 4px 0 0;background:'+(b.est?'repeating-linear-gradient(45deg,#b7791f,#b7791f 4px,#e0b25e 4px,#e0b25e 8px)':'var(--sub)')+';opacity:'+(b.est?'1':'.45')+'"></div>'
+      +'<div style="font-size:10px;color:var(--sub)">'+b.label+'</div></div>').join('')
+    +'</div>';
+  // 数量（参考）
+  const q=d.qtyMonths||[], qc=d.qtyCum||{};
+  const noIn=q.every(x=>!x.inPieces);
+  h+='<h4 style="margin:16px 0 6px">数量の動き（枚・参考）</h4>'
+    +'<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap">'
+    +'<tr style="color:var(--sub);font-weight:700;text-align:right"><th style="text-align:left;padding:4px 6px">月</th><th style="padding:4px 6px">仕入(カネ信)</th><th style="padding:4px 6px">市場・付売 出荷</th><th style="padding:4px 6px">EC販売</th></tr>'
+    + q.map(m=>'<tr style="border-top:1px solid var(--line);text-align:right">'
+      +'<td style="text-align:left;padding:5px 6px;font-weight:700">'+zkYm(m.ym)+'</td>'
+      +'<td style="padding:5px 6px">'+(m.inPieces?('+'+m.inPieces.toLocaleString()):'—')+'</td>'
+      +'<td style="padding:5px 6px">−'+m.ichibaPieces.toLocaleString()+'<span style="color:var(--sub);font-size:11px">（'+m.ichibaBundles.toLocaleString()+'束）</span></td>'
+      +'<td style="padding:5px 6px">'+(m.ecPieces?('−'+m.ecPieces.toLocaleString()):'—')+'</td></tr>').join('')
+    +'</table></div>'
+    +(noIn?'<div style="font-size:12px;color:var(--sub);margin-top:4px">※ 仕入数量はカネ信入荷ログの稼働後に表示されます（金額側の推定には全仕入が入っています）。</div>':'');
+  // 注記
+  h+='<details style="margin-top:14px;font-size:12px;color:var(--sub)"><summary style="cursor:pointer;font-weight:700">📎 計算方法と注意（'+(d.monthlyConfirmed||0)+'ヶ月分の集計表を取込済み）</summary><ul style="margin:6px 0 0 18px;padding:0">'
+    +(d.notes||[]).map(n=>'<li style="margin:3px 0">'+n+'</li>').join('')
+    +'<li style="margin:3px 0">次回の実棚卸（2026年9月末）が終わったら、Claudeに「棚卸アンカーを更新して」と伝えると精度がリセットされます。</li>'
+    +'</ul></details>';
+  document.getElementById('zkBody').innerHTML=h;
+}
+document.getElementById('zkBtn').onclick=openZk;
+document.getElementById('zkX').onclick=closeZk;
+document.getElementById('zkModal').onclick=(e)=>{ if(e.target.id==='zkModal') closeZk(); };
+document.getElementById('zkRefresh').onclick=()=>{ document.getElementById('zkBody').innerHTML='<div class="rank-empty">再計算中…</div>'; fetchZk(true).then(renderZk).catch(err=>{ document.getElementById('zkBody').innerHTML='<div class="rank-empty">再計算に失敗: '+err.message+'</div>'; }); };
 
 /* ===== 付売・市売（卸）価格 ===== */
 let WHOLESALE=null;   // {period, tables:[{label,grades,rows,notes}]}
