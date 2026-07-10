@@ -118,8 +118,7 @@
   .cell .stk{font-size:10px;margin-top:3px;opacity:.85;font-weight:700}
   .ptag{position:absolute;top:2px;right:3px;font-size:8.5px;font-weight:800;line-height:1;padding:1.5px 3px;border-radius:5px;color:#fff}
   .ptag.dn{background:#c0392b} .ptag.up{background:#1a7f37}
-  .cell.snz-cell{background:repeating-linear-gradient(45deg,var(--u),var(--u) 6px,transparent 6px,transparent 12px);border:1px dashed var(--line);opacity:.75}
-  .cell.snz-cell .age{font-size:15px} .cell.snz-cell .stk{display:block!important;font-size:8.5px;margin-top:2px;color:var(--sub)}
+  .stag{position:absolute;top:1px;left:3px;font-size:9.5px;line-height:1;opacity:.85}
   .tbtn.on{background:var(--ink);color:var(--card);border-color:var(--ink)}
   .cell.empty{background:repeating-linear-gradient(45deg,transparent,transparent 5px,rgba(120,110,95,.05) 5px,rgba(120,110,95,.05) 10px);cursor:default;border:1px dashed var(--line)}
   .cell.empty:hover{transform:none;box-shadow:none}
@@ -377,7 +376,6 @@
     <option value="B">B級のみ</option>
   </select>
   <span class="thide">隠す<label><input type="checkbox" id="hide105">105幅</label><label><input type="checkbox" id="hideOrig">オリジナル</label><label><input type="checkbox" id="hideSnoko">スノコ</label></span>
-  <button id="hiddenBtn" class="tbtn" title="在庫表から一時的に非表示にした規格。押すと表示して解除できます" style="display:none">🙈 非表示 <b id="hiddenN">0</b></button>
   <div class="search">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
     <input id="q" placeholder="規格を検索…">
@@ -542,8 +540,7 @@ let SOURCE='';         // 'live' | 'sample'
 let MALLBASE={yahoo:'',rakuten:''};   // 商品ページURLのベース
 let COUNTSHEET=[];                     // 在庫チェック表の構造（ボード読込時に取得＝即印刷）
 let COSTS={};                          // 原価設定（品質|等級 → {cube:㎥単価, add:加工費/枚}）粗利ビュー用
-let REORDER_SNOOZE={};                  // 在庫表 非表示(見送り)中 key→再表示日('M/d')。GAS reorderKeyOf_ と同一キー
-let revealHidden=false;                 // 🙈非表示中のマスを一時表示して解除操作するモード
+let REORDER_SNOOZE={};                  // 見送り中 key→再表示日('M/d')。発注帯・通知から除外（在庫表には表示）。GAS reorderKeyOf_ と同一キー
 function reorderSnoozeKey(g,c){ return (c.coord?('c|'+c.coord):('s|'+g.quality+'|'+g.width+'|'+g.type+'|'+c.length+'|'+c.grade)); }
 function isReorderSnoozed(g,c){ return !!(REORDER_SNOOZE && REORDER_SNOOZE[reorderSnoozeKey(g,c)]); }
 const CACHE_KEY='hayazai_board_cache'; // 前回のボードデータ（開いた瞬間に即表示する用）
@@ -721,7 +718,7 @@ function buildRiskRows(){
   return Object.values(byKey).map(s=>{
     if(s.daily<=0) return null;
     const r=s.list[0];
-    if(isReorderSnoozed(r.g,r.c)) return null;   // 見送り中は発注帯からも除外（在庫表非表示と連動）
+    if(isReorderSnoozed(r.g,r.c)) return null;   // 見送り中は発注帯・通知から除外（在庫表には表示）
     const dl=Math.floor(Math.max(0,r.stock*(BUNDLE[r.length]||1)-(+r.c.reserved||0))/s.daily);   // 引当分は販売不可
     const shared=s.list.length>1;
     return {gi:r.gi, key:r.key, dl:dl, stock:r.stock,
@@ -734,12 +731,12 @@ function reorderSnoozeBlock(g,c){
   if(reorderExcluded(g)||c.infinite) return '';   // 発注対象外・無限在庫は対象外
   const until=REORDER_SNOOZE&&REORDER_SNOOZE[reorderSnoozeKey(g,c)];
   if(until){
-    return '<div class="snz on"><div class="et">🙈 見送り中（在庫表・通知とも非表示）</div>'
-      +'<div class="snz-cur"><b>'+until+'</b> まで、在庫表から隠し、発注アラート・通知（メール/タスク）にも出しません。</div>'
-      +'<button class="btn ghost" style="margin-top:8px;width:100%" onclick="snoozeReorder(0,this)">🔔 表示・通知に戻す</button></div>';
+    return '<div class="snz on"><div class="et">🔕 見送り中（アラート・通知を停止）</div>'
+      +'<div class="snz-cur"><b>'+until+'</b> まで、上の在庫切れアラート帯・通知（メール/タスク）に出しません。在庫表にはこのまま表示されます。</div>'
+      +'<button class="btn ghost" style="margin-top:8px;width:100%" onclick="snoozeReorder(0,this)">🔔 アラート・通知に戻す</button></div>';
   }
-  return '<div class="snz"><div class="et">🙈 しばらく見送る（在庫表＋通知を止める）</div>'
-    +'<div class="snz-note">補充予定がない規格を、在庫表の一覧から隠し、あわせて発注アラート・大樹への通知（メール/タスク）からも一定期間 外します。</div>'
+  return '<div class="snz"><div class="et">🔕 在庫切れアラートをしばらく止める</div>'
+    +'<div class="snz-note">補充予定がない規格を、上の在庫切れアラート帯・大樹への通知（メール/タスク）から一定期間 外します。在庫表にはそのまま表示されます。</div>'
     +'<div class="snz-btns"><button class="btn ghost" onclick="snoozeReorder(7,this)">1週間 見送り</button><button class="btn ghost" onclick="snoozeReorder(30,this)">1ヶ月 見送り</button></div></div>';
 }
 async function snoozeReorder(days,btn){
@@ -751,7 +748,7 @@ async function snoozeReorder(days,btn){
     btn.dataset.label=btn.innerHTML;
     btn.innerHTML='<span class="spin sm"></span>'+(days>0?'見送り中…':'解除中…');
   }
-  if(SOURCE!=='live'){ if(btn){btn.classList.remove('loading');btn.innerHTML=btn.dataset.label||btn.innerHTML;} alert('【サンプル】本番では'+(days?days+'日間 見送り（在庫表非表示＋通知停止）':'見送りを解除')+'します。'); return; }
+  if(SOURCE!=='live'){ if(btn){btn.classList.remove('loading');btn.innerHTML=btn.dataset.label||btn.innerHTML;} alert('【サンプル】本番では'+(days?days+'日間 見送り（アラート・通知停止）':'見送りを解除')+'します。'); return; }
   try{
     const cr=creds();
     const r=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:cr.email,pass:cr.pass,reorderSnooze:{key:key,days:days,tag:tag}})});
@@ -760,7 +757,7 @@ async function snoozeReorder(days,btn){
       REORDER_SNOOZE=j.reorderSnooze||{};
       try{ const cc=loadCache(); if(cc){ cc.reorderSnooze=REORDER_SNOOZE; localStorage.setItem(CACHE_KEY,JSON.stringify(cc)); } }catch(e){}   // 直後に更新しても一瞬も出さない
       const lbl=days===7?'1週間':(days===30?'1ヶ月':days+'日');
-      toast(days>0?('🙈 '+lbl+'見送りにしました（'+(REORDER_SNOOZE[key]||'')+'まで・在庫表と通知から除外／🙈ボタンで戻せます）'):'🔔 表示・通知に戻しました');
+      toast(days>0?('🔕 '+lbl+'見送りにしました（'+(REORDER_SNOOZE[key]||'')+'まで アラート・通知に出しません。在庫表には表示のまま）'):'🔔 アラート・通知に戻しました');
       closeDrawer(); renderReorder(getLeadTime()); render();
     } else { restoreSnzBtn_(btn); alert('失敗: '+((j&&j.error)||'不明')); }
   }catch(e){ restoreSnzBtn_(btn); alert('通信失敗: '+e.message); }
@@ -887,13 +884,6 @@ function render(){
   const grid=document.getElementById('grid');
   grid.innerHTML=html;
   grid.querySelectorAll('.cell:not(.empty)').forEach(el=>el.onclick=()=>openDrawer(+el.dataset.gi,el.dataset.k));
-  // 🙈 非表示（見送り）中の件数トグル
-  const hN=REORDER_SNOOZE?Object.keys(REORDER_SNOOZE).length:0;
-  const hb=document.getElementById('hiddenBtn');
-  hb.style.display=hN?'':'none';
-  document.getElementById('hiddenN').textContent=hN;
-  hb.classList.toggle('on', revealHidden && hN>0);
-  if(!hN && revealHidden) revealHidden=false;   // 全部戻ったら自動でトグルOFF
   updateSaveBar();
 }
 function sectionBanner(q,groups,title,clsOverride){
@@ -913,12 +903,6 @@ function cardHTML(g,mode){
       const c=g.cells[L+'|'+G];
       if(!c) return '<td><div class="cell empty"></div></td>';
       const cgi=(c._gi!=null)?c._gi:g.gi;   // 統合カードのセルは元グループのgiで開閉・編集する
-      // 在庫表から「見送り（非表示）」中のマス：通常は空欄。🙈トグルON時だけ復帰用に表示
-      if(isReorderSnoozed(g,c)){
-        if(!revealHidden) return '<td><div class="cell empty snz-blank"></div></td>';
-        const until=REORDER_SNOOZE[reorderSnoozeKey(g,c)]||'';
-        return '<td><div class="cell snz-cell" data-gi="'+cgi+'" data-k="'+L+'|'+G+'" title="在庫表から非表示中（'+until+'まで）／クリックで解除して戻せます"><span class="age">🙈</span><span class="stk">'+until+'まで</span></div></td>';
-      }
       const s=curStock(cgi,c), p=curPriceDisp(cgi,c);
       const sDisp=c.infinite?'∞':s;
       const ed=isEdited(cgi,c)?' edited':'';
@@ -933,6 +917,7 @@ function cardHTML(g,mode){
         const pl=c.pchg.latest, dn=pl.diff<0;
         tag='<span class="ptag '+(dn?'dn':'up')+'" title="'+pl.date+' '+yen(pl.old)+'→'+yen(pl.new)+'">'+(dn?'▼':'▲')+pl.days+'日</span>';
       }
+      if(isReorderSnoozed(g,c)) tag+='<span class="stag" title="見送り中（'+(REORDER_SNOOZE[reorderSnoozeKey(g,c)]||'')+'まで 発注アラート・通知に出しません）">🔕</span>';
       // 在庫・価格モードは下段に「売れてない期間」を表示（発注・ポイントは従来どおり在庫）
       const showStale=(mode==='stock'||mode==='price');
       const staleCls=(c.combined!=null)?bucket(c.combined):'u';
@@ -1243,7 +1228,6 @@ async function applyEdits(){
 
 /* ===== ツールバー ===== */
 document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();});
-document.getElementById('hiddenBtn').onclick=()=>{ revealHidden=!revealHidden; render(); };
 ['sortSel','qSel'].forEach(id=>document.getElementById(id).onchange=render);
 document.getElementById('q').oninput=render;
 // 隠すチェック（105幅/オリジナル/スノコ・状態は端末に保持）
