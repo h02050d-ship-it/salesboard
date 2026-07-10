@@ -96,10 +96,10 @@
   .section .sec-kpi{font-size:12px;font-weight:700;color:var(--sub)}
   .sec-b{background:linear-gradient(100deg,rgba(123,97,255,.22),rgba(123,97,255,.05));border-left:6px solid #7b61ff}
   .sec-b .sec-q{background:#7b61ff}
-  .sec-a{background:linear-gradient(100deg,rgba(122,92,62,.20),rgba(122,92,62,.04));border-left:6px solid var(--accent)}
-  .sec-a .sec-q{background:var(--accent)}
-  .sec-s{background:linear-gradient(100deg,rgba(120,117,108,.16),rgba(120,117,108,.03));border-left:6px solid var(--sub)}
-  .sec-s .sec-q{background:var(--sub);font-size:14px}
+  .sec-a{background:linear-gradient(100deg,rgba(192,57,43,.20),rgba(192,57,43,.04));border-left:6px solid #c0392b}
+  .sec-a .sec-q{background:#c0392b}
+  .sec-s{background:linear-gradient(100deg,rgba(212,160,23,.25),rgba(212,160,23,.05));border-left:6px solid #d4a017}
+  .sec-s .sec-q{background:#d4a017;font-size:14px}
   .grid > .section:first-child{margin-top:2px}   /* 先頭セクションは詰める／2枚目以降は18pxで区切り */
   .gcard{background:var(--card);border:1px solid var(--line);border-radius:15px;box-shadow:var(--shadow);overflow:hidden}
   .gcard h2{font-size:13.5px;font-weight:800;padding:12px 15px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,rgba(122,92,62,.07),transparent)}
@@ -361,8 +361,8 @@
 <div class="toolbar">
   <div class="seg" id="modeSeg">
     <button data-mode="stock" class="on">📦 在庫数</button>
-    <button data-mode="order">🚨 発注</button>
     <button data-mode="price">💴 価格</button>
+    <button data-mode="order">🚨 発注</button>
     <button data-mode="point">⭐ ポイント</button>
   </div>
   <button id="rkTodoBtn" class="tbtn rktodo-alert" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none">⚠️ 楽天 未反映 <span class="rkbadge" id="rkTodoN">0</span>件 → 要手動更新</button>
