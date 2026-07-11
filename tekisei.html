@@ -11,13 +11,13 @@
   :root{
     --bg:#f4f1ea; --card:#fffdf8; --ink:#2c2a26; --sub:#7a756c; --line:#e3ddd0;
     --accent:#5a7a3e; --accent2:#7a9a55; --shadow:0 1px 3px rgba(60,45,25,.08),0 6px 20px rgba(60,45,25,.06);
-    --buy:#c0392b; --buy-bg:rgba(192,57,43,.06); --warn:#b7791f; --ok:#1e8e4e;
+    --buy:#c0392b; --buy-bg:rgba(192,57,43,.06); --warn:#b7791f; --ok:#1e8e4e; --pos:#1c66c4;
   }
   @media (prefers-color-scheme: dark){
     :root{
       --bg:#1c1a17; --card:#26231f; --ink:#ece7dd; --sub:#9c958a; --line:#3a352e;
       --accent:#9dbb72; --accent2:#7a9a55; --shadow:0 1px 3px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
-      --buy:#e57368; --buy-bg:rgba(229,115,104,.10); --warn:#e0b25e; --ok:#7fce9e;
+      --buy:#e57368; --buy-bg:rgba(229,115,104,.10); --warn:#e0b25e; --ok:#7fce9e; --pos:#6fb1f5;
     }
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -111,7 +111,8 @@ function render(){
   h+='<div class="card"><div class="l">⚙ 前提（運用モデル）</div>'
     +'<div style="font-size:13px;line-height:1.8"><b>カネ信は常時入荷で止めない</b>: '+(st.kaneshinMonthly||400)+'束/月・4mのみ<br>'
     +'等級配分: 丸節<b>80%</b> / 小節<b>10%</b> / 特上小<b>5%</b> / 無節<b>5%</b><br>'
-    +'安全在庫 <b>'+(st.safetyDays||60)+'日分</b>（スポット購入リードタイム1〜2ヶ月）・売れ行き集計 <b>'+winLabel+'</b></div>'
+    +'安全在庫 <b>'+(st.safetyDays||60)+'日分（≒'+(st.safetyWorkdays||40)+'稼働日）</b>・売れ行き集計 <b>'+winLabel+'</b><br>'
+    +'需要・残日数は<b>月'+(st.workdaysPerMonth||20)+'日稼働の稼働日ベース</b></div>'
     +'<div style="font-size:11px;color:var(--sub);margin-top:4px">数値の変更は在庫スプシ「仕入判断」シート B2:B4'+(covTxt?('<br>⚠ '+covTxt+'しかないため、日販は実カバー日数で割っています'):'')+'</div></div>';
   if(s.buyCount){
     h+='<div class="card buy"><div class="l" style="color:var(--buy)">🛒 スポット購入の候補 '+s.buyCount+'規格 ・ 計 '+Number(s.buyBundles).toLocaleString()+'束</div>'
@@ -121,7 +122,7 @@ function render(){
   h+='</div>';
   // テーブル
   h+='<div class="tblwrap"><table><thead><tr>'
-    +'<th class="tl">規格</th><th>現在庫(束)</th><th>'+winLabel+'実績</th><th>需要/日</th><th>カネ信/日</th><th>純増減/日</th><th>残日数</th><th>適正('+(st.safetyDays||60)+'日)</th><th>過不足</th><th class="tl">在庫÷適正</th><th class="tl">判定・アクション</th>'
+    +'<th class="tl">規格</th><th>現在庫(束)</th><th>'+winLabel+'実績</th><th title="月'+(st.workdaysPerMonth||20)+'日稼働換算">需要/稼働日</th><th title="月'+(st.workdaysPerMonth||20)+'日稼働換算">カネ信/稼働日</th><th>純増減/稼働日</th><th>残(稼働日)</th><th title="'+(st.safetyDays||60)+'暦日≒'+(st.safetyWorkdays||40)+'稼働日分">適正在庫</th><th>過不足</th><th class="tl">在庫÷適正</th><th class="tl">判定・アクション</th>'
     +'</tr></thead><tbody>';
   let lastLen=null;
   (d.rows||[]).forEach(r=>{
@@ -134,7 +135,7 @@ function render(){
           +'📦 <b style="font-size:14px">4m 丸節プール 推定 約 '+Number(p.estToday).toLocaleString()+'束</b>'
           +'（3/31実棚卸 '+Number(p.anchor1.bundles).toLocaleString()+'束 ＋ 入荷推定 '+Number(p.inflowSince).toLocaleString()+'束 − 出荷実績 '+Number(p.outflowSince).toLocaleString()+'束'+(p.ecSince?(' − EC '+p.ecSince+'束'):'')+'）'
           +(p.reservedBundles?('・加工引当 '+p.reservedBundles+'束 → 販売可能 約 <b>'+Number(p.estAvail).toLocaleString()+'束</b>'):'')
-          +(p.poolDays!=null?('・丸節4m需要 '+p.demandDaily+'束/日 → <b>残 約'+p.poolDays+'日分</b>'):'')
+          +(p.poolDays!=null?('・丸節4m需要 '+p.demandDaily+'束/稼働日 → <b>残 約'+p.poolDays+'稼働日分</b>'):'')
           +'<br><span style="color:var(--sub)">プール=選別前の原板＋仕掛品＋加工品（丸節系）。入荷は前期(9/30→3/31)の実績から逆算した '+p.inflowRate+'束/日（カネ信＋スポット等ぜんぶ込み）を仮定。下の丸節行の「≈推定」はこの値です（1m/2m/3mの丸節も同方式）。</span></td></tr>';
       }
     }
@@ -146,7 +147,7 @@ function render(){
     const ratio=r.teki>0?Math.max(0,r.availBundles)/r.teki:null;   // 1.0=適正ちょうど（バーは2.0でフル）
     const barW=ratio==null?0:Math.min(1,ratio/2)*100;
     const barC=ratio==null?'var(--line)':(ratio<1?'var(--buy)':(ratio>2?'var(--warn)':'var(--ok)'));
-    const netCol=r.net<0?'var(--buy)':'var(--ok)';
+    const netCol=r.net<0?'var(--buy)':'var(--pos)';
     h+='<tr class="'+(r.status==='buy'?'buyrow':'')+'">'
       +'<td class="tl" style="font-weight:800">'+esc(r.grade)+'</td>'
       +'<td style="font-weight:800">'+stockCell+warn+(r.reservedPieces?' <span style="color:var(--sub);font-size:11px" title="加工予定に引当済みの枚数">🔒'+r.reservedPieces+'枚</span>':'')+'</td>'
@@ -156,7 +157,7 @@ function render(){
       +'<td style="color:'+netCol+';font-weight:700">'+(r.net>0?'+':'')+r.net.toFixed(2)+'</td>'
       +'<td>'+(r.daysLeft==null?'—':(r.daysLeft+'日'))+'</td>'
       +'<td>'+Number(r.teki).toLocaleString()+'</td>'
-      +'<td style="font-weight:800;color:'+(r.diff<0?'var(--buy)':'var(--ink)')+'">'+(r.diff>0?'+':'')+Number(r.diff).toLocaleString()+'</td>'
+      +'<td style="font-weight:800;color:'+(r.diff<0?'var(--buy)':'var(--pos)')+'">'+(r.diff>0?'+':'')+Number(r.diff).toLocaleString()+'</td>'
       +'<td class="tl">'+(ratio==null?'<span style="color:var(--sub);font-size:11px">—</span>':'<span class="bar" title="現在庫 '+r.availBundles+'束 ÷ 適正 '+r.teki+'束 = '+(ratio*100).toFixed(0)+'%（中央線=適正100%）"><i style="width:'+barW.toFixed(0)+'%;background:'+barC+'"></i><b></b></span>')+'</td>'
       +'<td class="tl"><span class="st" style="color:'+ss.c+'">'+ss.t+'</span> <span class="act">'+esc(r.action)+'</span></td>'
       +'</tr>';
