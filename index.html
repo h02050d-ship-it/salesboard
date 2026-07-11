@@ -894,7 +894,8 @@ function render(){
   ];
   const secBlock=(q,gs,title,cls)=> gs.length ? (sectionBanner(q,gs,title,cls)+'<div class="bcards">'+gs.map(g=>cardHTML(g,mode)).join('')+'</div>') : '';
   let html='';
-  if(aG.length||bG.length) html+='<div class="board-2col"><div class="bcol">'+secBlock('A',aG,'A級品')+'</div><div class="bcol">'+secBlock('B',bG,'B級品')+'</div></div>';
+  if(aG.length&&bG.length) html+='<div class="board-2col"><div class="bcol">'+secBlock('A',aG,'A級品')+'</div><div class="bcol">'+secBlock('B',bG,'B級品')+'</div></div>';
+  else if(aG.length||bG.length) html+=(aG.length?secBlock('A',aG,'A級品'):secBlock('B',bG,'B級品'));   // 片方だけ（品質フィルタ時）は全幅で表示＝空カラムを作らない
   if(subG.length) html+='<div class="board-sub">'+secBlock('副',subG,'オリジナル・105幅（副産物）','s')+'</div>';
   if(!html) html='<div style="text-align:center;color:var(--sub);padding:60px">該当なし</div>';
   const grid=document.getElementById('grid');
@@ -1435,7 +1436,7 @@ function renderPchg(){
       +'<div class="ri" style="flex:1"><div class="t">'+r.name+'　'+r.length+'/'+r.grade+'</div>'
       +'<div class="s">'+p.date+' ・ '+yen(p.old)+' → <b>'+yen(p.new)+'</b> <span style="color:'+pchgColor(p.diff)+';font-weight:800">('+(p.diff>0?'+':'')+yen(p.diff)+')</span>'+(r.c.pchg.count>1?' ・ 累計'+r.c.pchg.count+'回':'')+'</div></div>'
       +'<div class="ri" style="text-align:right;min-width:120px"><div class="t"><b>'+ago+'</b></div>'
-      +'<div class="s" '+soldCls+'>変更後30日 '+soldTxt+' ・ '+infoStk+'</div></div></div>';
+      +'<div class="s" '+soldCls+'>直近30日 '+soldTxt+' ・ '+infoStk+'</div></div></div>';
   }).join('');
   body.querySelectorAll('.rrow').forEach(el=>el.onclick=()=>{ closePchg(); openDrawer(+el.dataset.gi,el.dataset.k); });
 }
@@ -1450,7 +1451,7 @@ document.getElementById('kpiOrder').onclick=()=>{
   document.querySelector('#modeSeg button[data-mode="order"]').classList.add('on');
   document.getElementById('sortSel').value='order'; render(); window.scrollTo({top:0,behavior:'smooth'});
 };
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeRkTodo(); closeDrawer(); closeZk(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeRkTodo(); closePchg(); closeDrawer(); closeZk(); } });
 
 /* ===== 在庫推定（棚卸アンカー × 月次売上仕入ロールフォワード・zaiko.js） ===== */
 let ZK=null;
@@ -1525,7 +1526,8 @@ function renderZk(){
       +'<td style="padding:5px 6px">'+(m.ecPieces?('−'+m.ecPieces.toLocaleString()):'—')+'</td></tr>').join('')
     +'</table></div>'
     +(noIn?'<div style="font-size:12px;color:var(--sub);margin-top:4px">※ 仕入数量はカネ信入荷ログの稼働後に表示されます（金額側の推定には全仕入が入っています）。</div>':'');
-  // 注記
+  // 適正在庫ページへの導線＋注記
+  h+='<div style="margin-top:12px"><a href="tekisei.html" class="tbtn" style="text-decoration:none">🎯 規格別の適正在庫・スポット購入目安を見る →</a></div>';
   h+='<details style="margin-top:14px;font-size:12px;color:var(--sub)"><summary style="cursor:pointer;font-weight:700">📎 計算方法と注意（'+(d.monthlyConfirmed||0)+'ヶ月分の集計表を取込済み）</summary><ul style="margin:6px 0 0 18px;padding:0">'
     +(d.notes||[]).map(n=>'<li style="margin:3px 0">'+n+'</li>').join('')
     +'<li style="margin:3px 0">次回の実棚卸（2026年9月末）が終わったら、Claudeに「棚卸アンカーを更新して」と伝えると精度がリセットされます。</li>'
