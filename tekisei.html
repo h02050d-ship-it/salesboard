@@ -32,6 +32,7 @@
   .spacer{margin-left:auto}
   .tbtn{font-size:12px;font-weight:700;padding:7px 12px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;text-decoration:none;white-space:nowrap}
   .tbtn:hover{border-color:var(--accent)}
+  .winbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
   #upd{font-size:12px;color:var(--sub);font-weight:700}
   main{max-width:1400px;margin:0 auto;padding:16px 20px}
   .cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
@@ -62,6 +63,10 @@
   <div class="logo">適</div>
   <div><h1>適正在庫</h1><div class="hsub">原板 A級標準120mm幅 ・ 長さ×等級の需給とスポット購入目安</div></div>
   <div class="spacer"></div>
+  <span id="winSeg">
+    <button class="tbtn winbtn" data-win="90">直近90日</button>
+    <button class="tbtn winbtn" data-win="365">直近1年</button>
+  </span>
   <span id="upd"></span>
   <button id="refreshBtn" class="tbtn">🔄 再計算</button>
   <a class="tbtn" href="./">← 在庫ボードへ</a>
@@ -71,31 +76,43 @@
 </main>
 <script>
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxvPjDv81vrJMW2GaqpCJooyxxt7__gvMF4mJkmcGNbNS2xGMoXgTnn6_OEPZ3Rr0spdg/exec";
-const CRED_KEY='hayazai_board_cred', TK_CACHE='hayazai_tekisei_cache';
+const CRED_KEY='hayazai_board_cred', TK_CACHE='hayazai_tekisei_cache', WIN_KEY='hayazai_tekisei_win';
 function creds(){ try{ return JSON.parse(localStorage.getItem(CRED_KEY)||sessionStorage.getItem(CRED_KEY)||'{}'); }catch(e){ return {}; } }
 function authQS(){ const c=creds(); return 'email='+encodeURIComponent(c.email||'')+'&pass='+encodeURIComponent(c.pass||''); }
 let TK=null;
+let WIN=Number(localStorage.getItem(WIN_KEY))||365;   // 集計期間（日）既定=直近1年
+function winCacheKey(){ return TK_CACHE+'_'+WIN; }
+function markWinSeg(){ document.querySelectorAll('.winbtn').forEach(b=>b.classList.toggle('on', Number(b.dataset.win)===WIN)); }
 const TK_ST={ buy:{c:'var(--buy)',t:'🟥 要スポット購入'}, soon:{c:'var(--warn)',t:'🟧 まもなく不足'}, recover:{c:'var(--warn)',t:'🟨 カネ信で回復見込み'}, over:{c:'var(--warn)',t:'🟡 積み上がり注意'}, ok:{c:'var(--ok)',t:'✅ 充足'}, idle:{c:'var(--sub)',t:'― 動きなし'}, none:{c:'var(--sub)',t:'―'} };
 
 async function fetchTk(force){
-  const r=await fetch(GAS_URL+'?api=tekisei&'+authQS()+(force?'&fresh=1':''));
+  const win=WIN;
+  const r=await fetch(GAS_URL+'?api=tekisei&win='+win+'&'+authQS()+(force?'&fresh=1':''));
   const j=await r.json();
-  if(j&&j.ok&&j.rows){ TK=j; try{localStorage.setItem(TK_CACHE,JSON.stringify(j));}catch(e){} return j; }
+  if(win!==WIN) throw new Error('期間切替のため破棄');   // 応答待ちの間に切り替えられた
+  if(j&&j.ok&&j.rows){ TK=j; try{localStorage.setItem(winCacheKey(),JSON.stringify(j));}catch(e){} return j; }
   throw new Error((j&&j.error)||'取得失敗');
 }
 function esc(s){ return String(s).replace(/</g,'&lt;'); }
 function render(){
   const d=TK; if(!d) return;
   document.getElementById('upd').textContent='更新 '+(d.updated||'');
+  markWinSeg();
   const st=d.settings||{}, s=d.summary||{};
+  const w=d.window||{}; const reqW=w.req||st.windowDays||90;
+  const winLabel=(reqW>=360)?'直近1年':('直近'+reqW+'日');
+  const covTxt=[
+    (w.ichibaEffDays&&w.ichibaEffDays<reqW)?('市場・付売データは'+(w.ichibaEarliest||'')+'以降の'+w.ichibaEffDays+'日分'):null,
+    (w.ecEffDays&&w.ecEffDays<reqW)?('ECデータは'+(w.ecEarliest||'')+'以降の'+w.ecEffDays+'日分'):null
+  ].filter(Boolean).join(' ／ ');
   let h='';
   // 前提＋サマリー
   h+='<div class="cards">';
   h+='<div class="card"><div class="l">⚙ 前提（運用モデル）</div>'
     +'<div style="font-size:13px;line-height:1.8"><b>カネ信は常時入荷で止めない</b>: '+(st.kaneshinMonthly||400)+'束/月・4mのみ<br>'
     +'等級配分: 丸節<b>80%</b> / 小節<b>10%</b> / 特上小<b>5%</b> / 無節<b>5%</b><br>'
-    +'安全在庫 <b>'+(st.safetyDays||60)+'日分</b>（スポット購入リードタイム1〜2ヶ月）・売れ行き集計 '+(st.windowDays||90)+'日</div>'
-    +'<div style="font-size:11px;color:var(--sub);margin-top:4px">数値の変更は在庫スプシ「仕入判断」シート B2:B4</div></div>';
+    +'安全在庫 <b>'+(st.safetyDays||60)+'日分</b>（スポット購入リードタイム1〜2ヶ月）・売れ行き集計 <b>'+winLabel+'</b></div>'
+    +'<div style="font-size:11px;color:var(--sub);margin-top:4px">数値の変更は在庫スプシ「仕入判断」シート B2:B4'+(covTxt?('<br>⚠ '+covTxt+'しかないため、日販は実カバー日数で割っています'):'')+'</div></div>';
   if(s.buyCount){
     h+='<div class="card buy"><div class="l" style="color:var(--buy)">🛒 スポット購入の候補 '+s.buyCount+'規格 ・ 計 '+Number(s.buyBundles).toLocaleString()+'束</div>'
       +'<div style="font-size:13px;line-height:1.8">'+(s.buyList||[]).map(esc).join('<br>')+'</div>'
@@ -104,7 +121,7 @@ function render(){
   h+='</div>';
   // テーブル
   h+='<div class="tblwrap"><table><thead><tr>'
-    +'<th class="tl">規格</th><th>現在庫(束)</th><th>直近'+(st.windowDays||90)+'日実績</th><th>需要/日</th><th>カネ信/日</th><th>純増減/日</th><th>残日数</th><th>適正('+(st.safetyDays||60)+'日)</th><th>過不足</th><th class="tl">在庫÷適正</th><th class="tl">判定・アクション</th>'
+    +'<th class="tl">規格</th><th>現在庫(束)</th><th>'+winLabel+'実績</th><th>需要/日</th><th>カネ信/日</th><th>純増減/日</th><th>残日数</th><th>適正('+(st.safetyDays||60)+'日)</th><th>過不足</th><th class="tl">在庫÷適正</th><th class="tl">判定・アクション</th>'
     +'</tr></thead><tbody>';
   let lastLen=null;
   (d.rows||[]).forEach(r=>{
@@ -118,7 +135,7 @@ function render(){
     h+='<tr class="'+(r.status==='buy'?'buyrow':'')+'">'
       +'<td class="tl" style="font-weight:800">'+esc(r.grade)+'</td>'
       +'<td style="font-weight:800">'+Number(r.stock).toLocaleString()+warn+(r.reservedPieces?' <span style="color:var(--sub);font-size:11px" title="加工予定に引当済みの枚数">🔒'+r.reservedPieces+'枚</span>':'')+'</td>'
-      +'<td><span title="市場・付売の出荷束数">市 '+Number(r.ichiba90).toLocaleString()+'束</span> <span style="color:var(--sub)">/</span> <span title="EC販売（'+Number(r.ecPieces90).toLocaleString()+'枚）">EC '+Number(r.ec90).toLocaleString()+'束</span></td>'
+      +'<td><span title="市場・付売の出荷束数">市 '+Number(r.ichibaWin||0).toLocaleString()+'束</span> <span style="color:var(--sub)">/</span> <span title="EC販売（'+Number(r.ecPiecesWin||0).toLocaleString()+'枚）">EC '+Number(r.ecWin||0).toLocaleString()+'束</span></td>'
       +'<td style="font-weight:700">'+r.dTotal.toFixed(2)+'</td>'
       +'<td>'+(r.supply?('+'+r.supply.toFixed(2)):'—')+'</td>'
       +'<td style="color:'+netCol+';font-weight:700">'+(r.net>0?'+':'')+r.net.toFixed(2)+'</td>'
@@ -133,12 +150,19 @@ function render(){
   h+='<div class="note"><b>📎 計算方法と注意</b><ul>'+(d.notes||[]).map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul></div>';
   document.getElementById('content').innerHTML=h;
 }
+function loadWin(){
+  markWinSeg();
+  TK=null;
+  try{ const s=localStorage.getItem(winCacheKey()); if(s){ const j=JSON.parse(s); if(j&&j.rows){ TK=j; render(); } } }catch(e){}
+  if(!TK) document.getElementById('content').innerHTML='<div class="empty">計算中…（初回は10〜30秒かかることがあります）</div>';
+  fetchTk(false).then(render).catch(err=>{ if(!TK) document.getElementById('content').innerHTML='<div class="empty">取得に失敗しました: '+esc(err.message)+'<br>（🔄再計算で再試行）</div>'; });
+}
 function boot(){
   const c=creds();
   if(!c.email){ document.getElementById('content').innerHTML='<div class="empty">ログイン情報がありません。<br><a href="./">在庫ボード</a>でログイン（ログインを保持）してから開き直してください。</div>'; return; }
-  try{ const s=localStorage.getItem(TK_CACHE); if(s){ const j=JSON.parse(s); if(j&&j.rows){ TK=j; render(); } } }catch(e){}
-  fetchTk(false).then(render).catch(err=>{ if(!TK) document.getElementById('content').innerHTML='<div class="empty">取得に失敗しました: '+esc(err.message)+'<br>（🔄再計算で再試行）</div>'; });
+  loadWin();
 }
+document.querySelectorAll('.winbtn').forEach(b=>b.onclick=()=>{ WIN=Number(b.dataset.win)||365; try{localStorage.setItem(WIN_KEY,String(WIN));}catch(e){} loadWin(); });
 document.getElementById('refreshBtn').onclick=()=>{ document.getElementById('content').innerHTML='<div class="empty">再計算中…</div>'; fetchTk(true).then(render).catch(err=>{ document.getElementById('content').innerHTML='<div class="empty">再計算に失敗: '+esc(err.message)+'</div>'; }); };
 boot();
 </script>
