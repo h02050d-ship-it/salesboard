@@ -115,9 +115,14 @@ function render(){
     +'需要・残日数は<b>月'+(st.workdaysPerMonth||20)+'日稼働の稼働日ベース</b></div>'
     +'<div style="font-size:11px;color:var(--sub);margin-top:4px">数値の変更は在庫スプシ「仕入判断」シート B2:B4'+(covTxt?('<br>⚠ '+covTxt+'しかないため、日販は実カバー日数で割っています'):'')+'</div></div>';
   if(s.buyCount){
-    h+='<div class="card buy"><div class="l" style="color:var(--buy)">🛒 スポット購入の候補 '+s.buyCount+'規格 ・ 計 '+Number(s.buyBundles).toLocaleString()+'束</div>'
-      +'<div style="font-size:13px;line-height:1.8">'+(s.buyList||[]).map(esc).join('<br>')+'</div>'
-      +'<div style="font-size:11px;color:var(--sub);margin-top:4px">⚠印の規格は在庫データ未整備のため参考値（下の注意参照）</div></div>';
+    const rowsB=(s.buyRows||[]).length?s.buyRows:(s.buyList||[]).map(x=>({label:x,bundles:'',pieces:0,daysLeft:null}));
+    h+='<div class="card buy"><div class="l" style="color:var(--buy)">🛒 スポット購入の候補 '+s.buyCount+'規格 ・ 計 '+Number(s.buyBundles).toLocaleString()+'束'+(s.buyPieces?('（≒'+Number(s.buyPieces).toLocaleString()+'枚）'):'')+'</div>'
+      +'<div style="font-size:13px;line-height:1.8">'
+      + rowsB.map(b=>esc(b.label)+'　<b>'+Number(b.bundles).toLocaleString()+'束</b>'
+          +(b.daysLeft!=null?'　<span style="color:'+(b.daysLeft<=20?'var(--buy)':'var(--sub)')+';font-size:11px">残'+b.daysLeft+'稼働日</span>':'')).join('<br>')
+      +'</div>'
+      +'<button id="copyBuyBtn" class="tbtn" style="margin-top:8px">📋 発注メモをコピー</button>'
+      +'<div style="font-size:11px;color:var(--sub);margin-top:4px">緊急度順（残稼働日の少ない順）。数量は目安＝適正在庫までの不足＋'+(st.safetyWorkdays||40)+'稼働日分の純減。</div></div>';
   }
   h+='</div>';
   // テーブル
@@ -165,6 +170,23 @@ function render(){
   h+='</tbody></table></div>';
   h+='<div class="note"><b>📎 計算方法と注意</b><ul>'+(d.notes||[]).map(n=>'<li>'+esc(n)+'</li>').join('')+'</ul></div>';
   document.getElementById('content').innerHTML=h;
+  const cb=document.getElementById('copyBuyBtn');
+  if(cb) cb.onclick=()=>copyBuyMemo(d);
+}
+function copyBuyMemo(d){
+  const s=(d&&d.summary)||{}, st=(d&&d.settings)||{};
+  const today=new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'numeric',day:'numeric'});
+  const lines=['【スポット購入 候補】'+today,''];
+  (s.buyRows||[]).forEach(b=>{
+    lines.push('・'+b.label+'　'+Number(b.bundles).toLocaleString()+'束（≒'+Number(b.pieces).toLocaleString()+'枚）'
+      +(b.daysLeft!=null?('　残'+b.daysLeft+'稼働日'):''));
+  });
+  lines.push('');
+  lines.push('※適正在庫='+(st.safetyDays||60)+'日分（月'+(st.workdaysPerMonth||20)+'日稼働換算）・実績'+((d.window&&d.window.req>=360)?'直近1年':'直近'+((d.window&&d.window.req)||90)+'日'));
+  const text=lines.join('\n');
+  const done=()=>{ const b=document.getElementById('copyBuyBtn'); if(b){ const t=b.textContent; b.textContent='✅ コピーしました'; setTimeout(()=>{ b.textContent=t; },1600);} };
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(text).then(done).catch(()=>prompt('コピーできない場合は手動で選択してください', text)); }
+  else prompt('コピーできない場合は手動で選択してください', text);
 }
 function loadWin(){
   markWinSeg();
