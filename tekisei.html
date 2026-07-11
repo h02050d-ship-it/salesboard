@@ -131,22 +131,25 @@ function render(){
       if(r.length===4000 && d.pool4m){
         const p=d.pool4m;
         h+='<tr><td colspan="11" class="tl" style="background:rgba(90,122,62,.08);border-left:3px solid var(--accent);font-size:12.5px;line-height:1.7;white-space:normal">'
-          +'📦 <b style="font-size:14px">4m 原板プール 推定 約 '+Number(p.estToday).toLocaleString()+'束</b>'
+          +'📦 <b style="font-size:14px">4m 丸節プール 推定 約 '+Number(p.estToday).toLocaleString()+'束</b>'
           +'（3/31実棚卸 '+Number(p.anchor1.bundles).toLocaleString()+'束 ＋ 入荷推定 '+Number(p.inflowSince).toLocaleString()+'束 − 出荷実績 '+Number(p.outflowSince).toLocaleString()+'束'+(p.ecSince?(' − EC '+p.ecSince+'束'):'')+'）'
           +(p.reservedBundles?('・加工引当 '+p.reservedBundles+'束 → 販売可能 約 <b>'+Number(p.estAvail).toLocaleString()+'束</b>'):'')
-          +(p.poolDays!=null?('・4m合計需要 '+p.demandDaily+'束/日 → <b>残 約'+p.poolDays+'日分</b>'):'')
-          +'<br><span style="color:var(--sub)">プール=選別前の原板＋仕掛品＋加工品（丸節系）。入荷は前期(9/30→3/31)の実績から逆算した '+p.inflowRate+'束/日（カネ信＋スポット等ぜんぶ込み）を仮定。下の等級別セル在庫より実態に近い数字です。</span></td></tr>';
+          +(p.poolDays!=null?('・丸節4m需要 '+p.demandDaily+'束/日 → <b>残 約'+p.poolDays+'日分</b>'):'')
+          +'<br><span style="color:var(--sub)">プール=選別前の原板＋仕掛品＋加工品（丸節系）。入荷は前期(9/30→3/31)の実績から逆算した '+p.inflowRate+'束/日（カネ信＋スポット等ぜんぶ込み）を仮定。下の丸節行の「≈推定」はこの値です（1m/2m/3mの丸節も同方式）。</span></td></tr>';
       }
     }
     const ss=TK_ST[r.status]||TK_ST.none;
-    const warn=r.infinite?' <span title="無限在庫（EC常時100送信）の規格。カネ信入荷が在庫セルに足されていないため、実際より少なく表示されている可能性が高い">⚠</span>':'';
+    const warn=(r.infinite&&!r.pooled)?' <span title="無限在庫（EC常時100送信）の規格。カネ信入荷が在庫セルに足されていないため、実際より少なく表示されている可能性が高い">⚠</span>':'';
+    const stockCell=r.pooled
+      ? '<span style="color:var(--accent)" title="棚卸(3/31)起点の推定値: 丸節プール（原板＋仕掛品＋加工品）を前期実績の入荷ペースと出荷実績でロールフォワード。在庫セルの値('+Number(r.cellStock||0).toLocaleString()+'束)は入荷未反映のため不使用">≈'+Number(r.stock).toLocaleString()+'<small style="font-size:10px;font-weight:700"> 推定</small></span>'
+      : Number(r.stock).toLocaleString();
     const ratio=r.teki>0?Math.max(0,r.availBundles)/r.teki:null;   // 1.0=適正ちょうど（バーは2.0でフル）
     const barW=ratio==null?0:Math.min(1,ratio/2)*100;
     const barC=ratio==null?'var(--line)':(ratio<1?'var(--buy)':(ratio>2?'var(--warn)':'var(--ok)'));
     const netCol=r.net<0?'var(--buy)':'var(--ok)';
     h+='<tr class="'+(r.status==='buy'?'buyrow':'')+'">'
       +'<td class="tl" style="font-weight:800">'+esc(r.grade)+'</td>'
-      +'<td style="font-weight:800">'+Number(r.stock).toLocaleString()+warn+(r.reservedPieces?' <span style="color:var(--sub);font-size:11px" title="加工予定に引当済みの枚数">🔒'+r.reservedPieces+'枚</span>':'')+'</td>'
+      +'<td style="font-weight:800">'+stockCell+warn+(r.reservedPieces?' <span style="color:var(--sub);font-size:11px" title="加工予定に引当済みの枚数">🔒'+r.reservedPieces+'枚</span>':'')+'</td>'
       +'<td><span title="市場・付売の出荷束数">市 '+Number(r.ichibaWin||0).toLocaleString()+'束</span> <span style="color:var(--sub)">/</span> <span title="EC販売（'+Number(r.ecPiecesWin||0).toLocaleString()+'枚）">EC '+Number(r.ecWin||0).toLocaleString()+'束</span></td>'
       +'<td style="font-weight:700">'+r.dTotal.toFixed(2)+'</td>'
       +'<td>'+(r.supply?('+'+r.supply.toFixed(2)):'—')+'</td>'
