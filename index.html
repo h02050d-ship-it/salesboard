@@ -384,7 +384,7 @@
   <button id="wsBtn" class="tbtn" title="付売・市売（卸）価格表">📋 付売・市売</button>
   <button id="pchgBtn" class="tbtn" title="値下げ・価格変更した商品の経過日数と、その後の売れ行きを確認">💴 値下げ管理</button>
   <button id="zkBtn" class="tbtn" title="棚卸2回と月次の売上・仕入から、今日時点の全社在庫額を推定">📦 在庫推定</button>
-  <button id="tkBtn" class="tbtn" title="原板（長さ×等級）ごとの需給から適正在庫とスポット購入目安を算出">🎯 適正在庫</button>
+  <a id="tkBtn" class="tbtn" href="tekisei.html" style="text-decoration:none" title="原板（長さ×等級）ごとの需給から適正在庫とスポット購入目安を算出（別ページで広く表示）">🎯 適正在庫</a>
   <a id="sheetBtn" class="tbtn" target="_blank" rel="noopener" title="連動している在庫スプレッドシートを開く" style="text-decoration:none;display:none">📊 スプシ ↗</a>
   <button id="printBtn" class="tbtn" title="棚卸し用の空欄チェック表を印刷">🖨 在庫チェック表</button>
   <button id="mmBtn" class="tbtn" title="Yahoo出品あり・楽天出品なしの規格を一覧印刷">🛒 楽天未掲載</button>
@@ -462,20 +462,6 @@
     </div>
     <div class="rank-note" id="zkNote"></div>
     <div class="rank-body" id="zkBody"></div>
-  </div>
-</div>
-
-<!-- 適正在庫モーダル -->
-<div class="rank-modal" id="tkModal">
-  <div class="rank-box">
-    <div class="rkh">
-      <h3>🎯 適正在庫（原板 A級標準）</h3>
-      <span id="tkUpd" style="font-size:12px;color:var(--sub);font-weight:700"></span>
-      <button id="tkRefresh" class="tbtn" style="margin-left:auto">🔄 再計算</button>
-      <button class="x" id="tkX">✕</button>
-    </div>
-    <div class="rank-note" id="tkNote"></div>
-    <div class="rank-body" id="tkBody"></div>
   </div>
 </div>
 
@@ -1464,7 +1450,7 @@ document.getElementById('kpiOrder').onclick=()=>{
   document.querySelector('#modeSeg button[data-mode="order"]').classList.add('on');
   document.getElementById('sortSel').value='order'; render(); window.scrollTo({top:0,behavior:'smooth'});
 };
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeRkTodo(); closeDrawer(); closeZk(); closeTk(); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeRank(); closeWholesale(); closeRkTodo(); closeDrawer(); closeZk(); } });
 
 /* ===== 在庫推定（棚卸アンカー × 月次売上仕入ロールフォワード・zaiko.js） ===== */
 let ZK=null;
@@ -1550,66 +1536,6 @@ document.getElementById('zkBtn').onclick=openZk;
 document.getElementById('zkX').onclick=closeZk;
 document.getElementById('zkModal').onclick=(e)=>{ if(e.target.id==='zkModal') closeZk(); };
 document.getElementById('zkRefresh').onclick=()=>{ document.getElementById('zkBody').innerHTML='<div class="rank-empty">再計算中…</div>'; fetchZk(true).then(renderZk).catch(err=>{ document.getElementById('zkBody').innerHTML='<div class="rank-empty">再計算に失敗: '+err.message+'</div>'; }); };
-
-/* ===== 適正在庫（原板 長さ×等級の需給・tekisei.js） ===== */
-let TK=null;
-const TK_CACHE='hayazai_tekisei_cache';
-async function fetchTk(force){
-  const r=await fetch(GAS_URL+'?api=tekisei&'+authQS()+(force?'&fresh=1':''));
-  const j=await r.json();
-  if(j&&j.ok&&j.rows){ TK=j; try{localStorage.setItem(TK_CACHE,JSON.stringify(j));}catch(e){} return j; }
-  throw new Error((j&&j.error)||'取得失敗');
-}
-function openTk(){
-  document.getElementById('tkModal').classList.add('show');
-  if(SOURCE!=='live'){ document.getElementById('tkBody').innerHTML='<div class="rank-empty">ログインして実在庫に接続すると適正在庫を表示します。</div>'; return; }
-  if(!TK){ try{ const s=localStorage.getItem(TK_CACHE); if(s){ const j=JSON.parse(s); if(j&&j.rows) TK=j; } }catch(e){} }
-  if(TK) renderTk(); else document.getElementById('tkBody').innerHTML='<div class="rank-empty">計算中…（初回は10〜30秒かかることがあります）</div>';
-  fetchTk(false).then(renderTk).catch(err=>{ if(!TK) document.getElementById('tkBody').innerHTML='<div class="rank-empty">取得に失敗しました: '+err.message+'（🔄再計算で再試行）</div>'; });
-}
-function closeTk(){ document.getElementById('tkModal').classList.remove('show'); }
-const TK_ST={ buy:{c:'#c0392b',t:'🟥 要スポット購入'}, soon:{c:'#d35400',t:'🟧 まもなく不足'}, recover:{c:'#b7791f',t:'🟨 カネ信で回復見込み'}, over:{c:'#b7791f',t:'🟡 積み上がり注意'}, ok:{c:'#1e8e4e',t:'✅ 充足'}, idle:{c:'#888',t:'― 動きなし'}, none:{c:'#bbb',t:'―'} };
-function renderTk(){
-  const d=TK; if(!d) return;
-  document.getElementById('tkUpd').textContent='更新 '+(d.updated||'');
-  const st=d.settings||{};
-  document.getElementById('tkNote').innerHTML='<b>カネ信は常時入荷（止めない）・不足分は他市場からスポット購入</b>という運用モデルで、原板（A級標準120mm）の長さ×等級ごとに需給を分析。'
-    +'前提: カネ信 <b>'+(st.kaneshinMonthly||400)+'束/月</b>(4mのみ)・配分 <b>丸節80/小節10/特上小5/無節5</b>・安全在庫 <b>'+(st.safetyDays||60)+'日分</b>・売れ行き集計 '+(st.windowDays||90)+'日（変更は在庫スプシ「仕入判断」シートB2:B4）';
-  const s=d.summary||{};
-  let h='';
-  if(s.buyCount){
-    h+='<div style="background:rgba(192,57,43,.08);border:1px solid rgba(192,57,43,.35);border-radius:12px;padding:10px 14px;margin-bottom:12px">'
-      +'<b style="color:#c0392b">🛒 スポット購入の候補 '+s.buyCount+'規格・計 '+Number(s.buyBundles).toLocaleString()+'束</b>'
-      +'<div style="font-size:12px;margin-top:4px">'+ (s.buyList||[]).join(' ／ ') +'</div>'
-      +'<div style="font-size:11px;color:var(--sub);margin-top:4px">※ ⚠印の規格は在庫セルが実数と合っていない可能性が高く、束数は参考値です（下の注意参照）。</div></div>';
-  }
-  h+='<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;white-space:nowrap">'
-    +'<tr style="color:var(--sub);font-weight:700;text-align:right">'
-    +'<th style="text-align:left;padding:4px 6px">規格</th><th style="padding:4px 6px">現在庫(束)</th><th style="padding:4px 6px">需要/日</th><th style="padding:4px 6px">カネ信/日</th><th style="padding:4px 6px">残日数</th><th style="padding:4px 6px">適正('+(st.safetyDays||60)+'日)</th><th style="padding:4px 6px">過不足</th><th style="text-align:left;padding:4px 6px">判定</th></tr>'
-    +(d.rows||[]).map(r=>{
-      const ss=TK_ST[r.status]||TK_ST.none;
-      const warn=r.infinite?' <span title="無限在庫（EC常時100送信）の規格。カネ信入荷が在庫セルに足されていないため、実際より少なく表示されている可能性が高い">⚠</span>':'';
-      const demandTip='直近'+(st.windowDays||90)+'日: 市場・付売 '+r.ichiba90+'束 ／ EC '+r.ec90+'束('+Number(r.ecPieces90).toLocaleString()+'枚)';
-      const diffCol=r.diff<0?'#c0392b':'var(--ink)';
-      return '<tr style="border-top:1px solid var(--line);text-align:right'+(r.status==='buy'?';background:rgba(192,57,43,.05)':'')+'">'
-        +'<td style="text-align:left;padding:5px 6px;font-weight:700">'+r.lenLabel+' '+r.grade+'</td>'
-        +'<td style="padding:5px 6px;font-weight:700">'+Number(r.stock).toLocaleString()+warn+(r.reservedPieces?'<span style="color:var(--sub);font-size:11px" title="加工予定に引当済みの枚数">(🔒'+r.reservedPieces+'枚)</span>':'')+'</td>'
-        +'<td style="padding:5px 6px" title="'+demandTip+'">'+r.dTotal.toFixed(2)+'<span style="color:var(--sub);font-size:11px">（市'+r.ichibaDaily.toFixed(1)+'/EC'+r.ecDaily.toFixed(1)+'）</span></td>'
-        +'<td style="padding:5px 6px">'+(r.supply?('+'+r.supply.toFixed(2)):'—')+'</td>'
-        +'<td style="padding:5px 6px">'+(r.daysLeft==null?'—':(r.daysLeft+'日'))+'</td>'
-        +'<td style="padding:5px 6px">'+Number(r.teki).toLocaleString()+'</td>'
-        +'<td style="padding:5px 6px;font-weight:800;color:'+diffCol+'">'+(r.diff>0?'+':'')+Number(r.diff).toLocaleString()+'</td>'
-        +'<td style="text-align:left;padding:5px 6px;font-size:12px"><b style="color:'+ss.c+'">'+ss.t+'</b> <span style="color:var(--sub)">'+r.action+'</span></td></tr>';
-    }).join('')+'</table></div>';
-  h+='<details style="margin-top:14px;font-size:12px;color:var(--sub)"><summary style="cursor:pointer;font-weight:700">📎 計算方法と注意</summary><ul style="margin:6px 0 0 18px;padding:0">'
-    +(d.notes||[]).map(n=>'<li style="margin:3px 0">'+n+'</li>').join('')
-    +'</ul></details>';
-  document.getElementById('tkBody').innerHTML=h;
-}
-document.getElementById('tkBtn').onclick=openTk;
-document.getElementById('tkX').onclick=closeTk;
-document.getElementById('tkModal').onclick=(e)=>{ if(e.target.id==='tkModal') closeTk(); };
-document.getElementById('tkRefresh').onclick=()=>{ document.getElementById('tkBody').innerHTML='<div class="rank-empty">再計算中…</div>'; fetchTk(true).then(renderTk).catch(err=>{ document.getElementById('tkBody').innerHTML='<div class="rank-empty">再計算に失敗: '+err.message+'</div>'; }); };
 
 /* ===== 付売・市売（卸）価格 ===== */
 let WHOLESALE=null;   // {period, tables:[{label,grades,rows,notes}]}
