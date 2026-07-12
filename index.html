@@ -330,9 +330,8 @@
       <button type="button" id="pwEye" class="pw-eye" aria-label="パスワードを表示">👁</button>
     </div>
     <button id="gateBtn">ログイン</button>
-    <label class="keep"><input type="checkbox" id="gateKeep" checked> ログインを保持する</label>
     <div class="err" id="gateErr"></div>
-    <div class="lock">🔒 メール・パスはこの端末のセッションにのみ保持され、サーバ側で照合します。</div>
+    <div class="lock">🔒 この端末にログインを保持し、次回から自動でログインします（毎回サーバ側で照合）。解除は上部の接続バッジをクリック。</div>
   </div>
 </div>
 
@@ -344,7 +343,7 @@
         <div class="sub" id="subline">林材木店 EC在庫一元管理 — 桧フローリング・羽目板</div>
       </div>
     </div>
-    <span id="srcBadge" class="src-badge">● 読込中…</span>
+    <span id="srcBadge" class="src-badge" title="クリックでログアウト（この端末の保存ログインを解除）" style="cursor:pointer">● 読込中…</span>
     <div class="kpis">
       <div class="kpi"><div class="n" id="kSku">–</div><div class="l">規格数</div></div>
       <div class="kpi" title="表示中の規格の直近30日販売枚数の合計（商売の体温計）"><div class="n" id="kSold30">–</div><div class="l">30日販売(枚)</div></div>
@@ -563,13 +562,15 @@ const CACHE_KEY='hayazai_board_cache'; // 前回のボードデータ（開い�
 let refreshTimer=null;                  // 定期裏更新タイマー
 const ckey=(gi,L,G)=>gi+'|'+L+'|'+G;
 
-// ログイン情報: 「保持する」=localStorage（次回も維持）/ しない=sessionStorage（タブ閉じで消える）
+// ログイン情報: この端末に保持（localStorage）＝次回以降は自動ログイン。サーバ照合は毎回通す（失効時はゲートへ戻す）。
 function creds(){ try{ return JSON.parse(localStorage.getItem(CRED_KEY)||sessionStorage.getItem(CRED_KEY)||'{}'); }catch(e){ return {}; } }
 function authQS(){ const c=creds(); return 'email='+encodeURIComponent(c.email||'')+'&pass='+encodeURIComponent(c.pass||''); }
-function saveCreds(email,pass,keep){ const v=JSON.stringify({email,pass}); if(keep){ localStorage.setItem(CRED_KEY,v); sessionStorage.removeItem(CRED_KEY); } else { sessionStorage.setItem(CRED_KEY,v); localStorage.removeItem(CRED_KEY); } }
+function saveCreds(email,pass){ const v=JSON.stringify({email,pass}); localStorage.setItem(CRED_KEY,v); try{ sessionStorage.removeItem(CRED_KEY); }catch(e){} }
 function clearCreds(){ localStorage.removeItem(CRED_KEY); sessionStorage.removeItem(CRED_KEY); try{localStorage.removeItem(CACHE_KEY);}catch(e){} }
 
 /* ===== 起動 ===== */
+// 旧sessionStorage保存分を localStorage へ引き継いでから削除（端末での自動ログイン永続化）
+try{ var _sc=sessionStorage.getItem(CRED_KEY); if(_sc!==null){ if(localStorage.getItem(CRED_KEY)===null) localStorage.setItem(CRED_KEY,_sc); sessionStorage.removeItem(CRED_KEY); } }catch(e){}
 function boot(){
   const c=creds();
   if(GAS_URL && c.email && c.pass){
@@ -601,10 +602,9 @@ document.getElementById('pwEye').onclick=()=>{ const i=document.getElementById('
 function submitGate(){
   const email=document.getElementById('gateMail').value.trim();
   const pass=document.getElementById('gatePass').value;
-  const keep=document.getElementById('gateKeep').checked;
   if(!email||!pass) return;
   // 楽観的に保存してゲートを即閉じ→スピナー→1回のGETで認証＋データ取得（待ち感をなくす）
-  saveCreds(email,pass,keep);
+  saveCreds(email,pass);
   document.getElementById('gateErr').textContent='';
   document.getElementById('gate').style.display='none';
   showLoading();
