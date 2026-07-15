@@ -59,6 +59,11 @@
   .rktodo-alert .rkbadge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;margin:0 2px;border-radius:11px;background:#fff;color:#d9480f;font-weight:900;font-size:12.5px;vertical-align:middle}
   @keyframes rkpulse{0%,100%{box-shadow:0 3px 10px rgba(217,72,15,.45)}50%{box-shadow:0 0 0 5px rgba(217,72,15,.18),0 3px 12px rgba(217,72,15,.55)}}
   @media (prefers-reduced-motion:reduce){.rktodo-alert{animation:none}}
+  /* 楽天⇔ヤフー 価格ズレ＝要対応アラート（未反映とは別色の琥珀で区別） */
+  .pgap-alert{color:#fff!important;background:#b54708!important;border:0!important;font-size:13.5px;font-weight:900;padding:9px 15px;box-shadow:0 3px 10px rgba(181,71,8,.42);animation:rkpulse 1.4s ease-in-out infinite;position:relative}
+  .pgap-alert:hover{color:#fff!important;background:#973c06!important;filter:brightness(1.05)}
+  .pgap-alert .rkbadge{color:#b54708}
+  @media (prefers-reduced-motion:reduce){.pgap-alert{animation:none}}
   .hz-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(140%);transition:transform .28s cubic-bezier(.2,.9,.3,1.2);z-index:60;max-width:min(92vw,460px);background:#2b2b3a;color:#fff;padding:13px 18px;border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.35);font-size:13px;font-weight:700;line-height:1.6;text-align:center}
   .hz-toast.show{transform:translateX(-50%) translateY(0)}
   .hz-toast b{color:#ffd27a}
@@ -366,6 +371,7 @@
     <button data-mode="point">⭐ ポイント</button>
   </div>
   <button id="rkTodoBtn" class="tbtn rktodo-alert" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none">⚠️ 楽天 未反映 <span class="rkbadge" id="rkTodoN">0</span>件 → 要手動更新</button>
+  <button id="pgapBtn" class="tbtn pgap-alert" title="楽天とヤフーの価格がヤフー基準（910=×2/他=同額）からズレている規格。RMSで合わせる" style="display:none">🔺 楽天⇔ヤフー 価格ズレ <span class="rkbadge" id="pgapN">0</span>件</button>
   <select id="sortSel">
     <option value="stock">並び: 在庫が多い順</option>
     <option value="order">並び: 在庫切れが近い順</option>
@@ -478,6 +484,19 @@
     </div>
     <div class="rank-note">ボードで変更した価格・ポイントのうち、<b>楽天へ自動反映できなかったもの</b>（楽天のAPI反映は有料オプションのため）。<b>🤖ボタンでClaudeへの反映依頼をコピー</b>→Claudeに貼り付けると、Claudeが楽天RMS（ログイン済みChrome）を操作して「新しい値」に更新します（保存前に一覧提示・確認）。反映後はこのリストから自動で消えます。手動でやった場合は <b>✓済</b> を押してください。</div>
     <div class="rank-body" id="rkTodoBody"></div>
+  </div>
+</div>
+
+<!-- 楽天⇔ヤフー 価格ズレモーダル -->
+<div class="rank-modal" id="pgapModal">
+  <div class="rank-box">
+    <div class="rkh">
+      <h3>🔺 楽天⇔ヤフー 価格ズレ</h3>
+      <button id="pgapClaudeAllBtn" class="tbtn" style="margin-left:auto;border-color:#7b61ff;color:#5b3fd6;font-weight:800" onclick="pgapClaudeAll()">🤖 まとめてClaudeで反映</button>
+      <button class="x" id="pgapX">✕</button>
+    </div>
+    <div class="rank-note"><b>ヤフー基準で楽天がズレている規格</b>です（換算ルール：910=ヤフー×2〔楽天40枚入 vs ヤフー20枚入〕、2000/3000/4000=同額）。市売改定などでヤフーだけ変えて楽天を追随し忘れると出ます。<b>「あるべき」＝ヤフー×換算</b>。楽天RMSで基本価格を「あるべき」に直し、<b>オプション（カット/塗装）も同じ差額でずらして</b>ください。🤖ボタンで反映依頼をコピーできます。</div>
+    <div class="rank-body" id="pgapBody"></div>
   </div>
 </div>
 
@@ -658,6 +677,7 @@ function applyData(j,fromCache){
   REORDER_SNOOZE=j.reorderSnooze||{};   // 発注アラート見送り中 key→再表示日
   const sb=document.getElementById('sheetBtn'); if(sb&&j.sheetUrl){ sb.href=j.sheetUrl; sb.style.display=''; }
   if(typeof j.rktodo==='number'){ RKTODO_N=j.rktodo; updateRkTodoBadge(); }
+  if(typeof j.priceGapN==='number'){ PGAP_N=j.priceGapN; updatePgapBadge(); }
   SOURCE='live';
   document.getElementById('gate').style.display='none';
   document.getElementById('demoBan').style.display='none';
@@ -1688,6 +1708,78 @@ async function rkTodoDone(row){
 document.getElementById('rkTodoBtn').onclick=openRkTodo;
 document.getElementById('rkTodoX').onclick=closeRkTodo;
 document.getElementById('rkTodoModal').onclick=(e)=>{ if(e.target.id==='rkTodoModal') closeRkTodo(); };
+
+/* ===== 楽天⇔ヤフー 価格ズレ（ヤフー基準・910=×2/他=同額の再発防止） ===== */
+const RMS_EDIT_BASE='https://item.rms.rakuten.co.jp/rms-sku/shops/419337/item/edit/';
+let PGAP=[];        // [{code,tag,length,grade,yahoo,mult,expect,rakuten,diff}...]
+let PGAP_N=0;
+function updatePgapBadge(){
+  const b=document.getElementById('pgapBtn'); if(!b) return;
+  b.style.display=PGAP_N>0?'':'none';
+  document.getElementById('pgapN').textContent=PGAP_N;
+}
+function openPgap(){
+  document.getElementById('pgapModal').classList.add('show');
+  document.getElementById('pgapBody').innerHTML='<div class="rank-empty"><span class="spin sm"></span>読み込み中…</div>';
+  fetch(GAS_URL+'?api=pricegap&'+authQS()).then(r=>r.json()).then(j=>{
+    if(j&&j.ok){ PGAP=j.items||[]; PGAP_N=PGAP.length; updatePgapBadge(); renderPgap(); }
+    else document.getElementById('pgapBody').innerHTML='<div class="rank-empty">読み込み失敗: '+((j&&j.error)||'不明')+'</div>';
+  }).catch(e=>{ document.getElementById('pgapBody').innerHTML='<div class="rank-empty">通信失敗</div>'; });
+}
+function closePgap(){ document.getElementById('pgapModal').classList.remove('show'); }
+async function refreshPgap(){
+  document.getElementById('pgapBody').innerHTML='<div class="rank-empty"><span class="spin sm"></span>楽天のライブ価格で再確認中…</div>';
+  try{
+    const j=await fetch(GAS_URL+'?api=pricegap&fresh=1&'+authQS()).then(r=>r.json());
+    if(j&&j.ok){ PGAP=j.items||[]; PGAP_N=PGAP.length; updatePgapBadge(); renderPgap(); }
+    else document.getElementById('pgapBody').innerHTML='<div class="rank-empty">再確認に失敗: '+((j&&j.error)||'不明')+'</div>';
+  }catch(e){ document.getElementById('pgapBody').innerHTML='<div class="rank-empty">通信失敗</div>'; }
+}
+function renderPgap(){
+  const body=document.getElementById('pgapBody');
+  if(!PGAP.length){ body.innerHTML='<div class="rank-empty">価格ズレはありません 🎉<div style="margin-top:10px"><button class="tbtn" onclick="refreshPgap()">🔄 楽天ライブ価格で再確認</button></div></div>'; return; }
+  const head='<div style="text-align:right;margin:-2px 0 8px"><button class="tbtn" onclick="refreshPgap()" title="楽天のマッピング価格をライブ取得し直して再判定">🔄 楽天ライブ価格で再確認</button></div>';
+  body.innerHTML=head+PGAP.map(t=>{
+    const edit=t.code?(RMS_EDIT_BASE+t.code):'';
+    const shop=(MALLBASE.rakuten&&t.code)?(MALLBASE.rakuten+t.code+'/'):'';
+    const sign=t.diff>0?'高い':'安い';
+    const dcol=t.diff>0?'#d9480f':'#1a7f37';
+    return '<div class="rrow" style="cursor:default">'
+      +'<div class="ri"><div class="t">'+t.tag+'　<span style="color:var(--sub);font-family:ui-monospace,monospace;font-size:10px">'+t.code+'</span></div>'
+      +'<div class="s">ヤフー '+yen(t.yahoo)+(t.mult===2?' ×2':'')+' ・ 楽天 現在 '+yen(t.rakuten)+' <b style="color:'+dcol+'">（'+(t.diff>0?'+':'')+t.diff+'＝'+sign+'）</b></div></div>'
+      +'<div class="rv" style="min-width:96px">'+yen(t.expect)+'<small>あるべき</small></div>'
+      +(edit?'<a class="tbtn" target="_blank" rel="noopener" href="'+edit+'" style="text-decoration:none" title="楽天RMSの商品編集ページ">RMS編集↗</a>':'')
+      +(shop?'<a class="tbtn" target="_blank" rel="noopener" href="'+shop+'" style="text-decoration:none">商品↗</a>':'')
+      +'<button class="tbtn" style="border-color:#7b61ff;color:#5b3fd6;font-weight:800" onclick="pgapClaudeOne(\''+t.code+'\')">🤖 Claudeで反映</button></div>';
+  }).join('');
+}
+function pgapClaudeText(items){
+  const lines=items.map((t,i)=>{
+    const edit=t.code?(RMS_EDIT_BASE+t.code):'(商品コード不明)';
+    const shift=t.expect-t.rakuten;   // オプションもこの差額だけずらす
+    return (i+1)+'. '+t.tag+'（'+t.code+'）\n'
+      +'   基本(なし)価格 → '+t.expect+'円（現在 '+t.rakuten+'／ヤフー'+t.yahoo+(t.mult===2?'×2':'')+'）\n'
+      +'   オプション（両端直角カット/自然塗装/カット+塗装）も各'+(shift>=0?'+':'')+shift+'円ずらす\n'
+      +'   RMS編集ページ: '+edit;
+  }).join('\n');
+  return '楽天RMSで以下の価格をヤフー基準に合わせてください（910=ヤフー×2／他=同額）。\n'
+    +'・ログイン済みのChrome（楽天RMS）で操作\n'
+    +'・個別編集ページで「なし/両端直角カット/自然塗装/カット+塗装」の4SKUを更新（一覧画面はSKU取りこぼしのため不可）\n'
+    +'・保存（更新する）前に、変更内容を一覧で提示して私に確認を取ってください\n\n'
+    +'【対象 '+items.length+'件】\n'+lines;
+}
+async function pgapClaudeReq(items){
+  if(!items.length){ toast('価格ズレはありません 🎉'); return; }
+  const text=pgapClaudeText(items);
+  const ok=await copyText(text);
+  if(ok) toast('📋 '+items.length+'件の反映依頼をコピーしました<br><b>Claudeのチャットに貼り付け</b>てください');
+  else showCopyFallback(text);
+}
+function pgapClaudeOne(code){ const t=PGAP.find(x=>x.code===code); if(t) pgapClaudeReq([t]); }
+function pgapClaudeAll(){ pgapClaudeReq(PGAP.slice()); }
+document.getElementById('pgapBtn').onclick=openPgap;
+document.getElementById('pgapX').onclick=closePgap;
+document.getElementById('pgapModal').onclick=(e)=>{ if(e.target.id==='pgapModal') closePgap(); };
 function normWsType(name){ return String(name||'').replace(/桧/g,'').trim(); }   // 桧フローリング→フローリング
 function buildWsMap(ws){
   const map={};
