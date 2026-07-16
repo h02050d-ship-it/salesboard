@@ -140,6 +140,7 @@
   .cell .uns{display:none;font-size:9.5px;font-weight:800;line-height:1;margin-top:3px;white-space:nowrap}
   .stkmode .cell .uns,.prmode .cell .uns{display:block}
   .uns.b-g{color:var(--g-ink)} .uns.b-y{color:var(--y-ink)} .uns.b-o{color:var(--o-ink)} .uns.b-r{color:var(--r-ink)} .uns.b-u{color:var(--u-ink)}
+  .cell .uns.cutbd{color:inherit;opacity:.82;font-weight:700}
   .ordmode .cell .age{font-size:13px}
   .ptmode .cell .age{font-size:15px} .ptmode .cell .stk{display:none}
 
@@ -528,6 +529,13 @@ const BUNDLE={910:20,2000:20,3000:10,4000:8};
 const LEN_ORDER=[910,2000,3000,4000], GRADE_ORDER=['丸節','小節','特上小','無節'];
 const WIDTH2GROUP={'120mm幅':'標準','105mm幅':'幅狭','オリジナル':'オリジナル'};
 
+/* ===== 木取り上乗せ設定（表示専用・実在庫[スプシ値]は絶対に変えない） =====
+   経営判断: 2m小節は最悪4m小節の原板を切って作れる（4m1束→2m相当2束）。
+   ボードの在庫「表示だけ」を 実2m在庫＋4m切分(4m小節在庫×factor) の合計にする。
+   EC送信・編集・仕入判断・発注・reorder は一切これを使わず実在庫(curStock)のまま。
+   キー = quality|group|length|grade。 */
+const CUT_RULES = { 'A|標準|2000|小節': { fromLen: 4000, factor: 2, label: '4m切' } };
+
 /* ===== サンプルデータ（実JSONと同形：cellsは配列） ===== */
 function C(length,grade,stock,price,y,r,snoko){
   // デモ: 楽天910は40枚入で価格体系が違う＝Yahooの約2倍を擬似値に（独立編集の検証用）
@@ -552,6 +560,7 @@ const SAMPLE=[
    C(2000,'小節',14,13800,[88,'3/28','AF2005678R'],[140,'2/4','RF2005678R']),
    C(2000,'特上小',6,16000,[260,'10/7','AF2009012R'],null),
    C(3000,'小節',9,20000,[150,'1/25','AF3005678R'],null),
+   C(4000,'小節',5,26000,[95,'3/12','AF4005678R'],[150,'1/20','RF4005678R']),
  ]},
  {quality:'A',group:'標準',width:'120mm幅',type:'羽目板',cells:[
    C(910,'丸節',31,4600,[14,'6/10','AH9101234R'],[26,'5/29','RH9101234R']),
@@ -731,6 +740,19 @@ function normalizeGroups(groups){
   });
 }
 function curStock(gi,c){ const k=ckey(gi,c.length,c.grade); return (edits[k]&&'stock'in edits[k])?edits[k].stock:c.stock; }
+// 木取り上乗せ: 対象セルか判定
+function cutRuleFor(g,L,G){ return CUT_RULES[g.quality+'|'+g.group+'|'+L+'|'+G]||null; }
+// 対象セルの上乗せ内訳を返す。対象外/4m在庫0以下/4m無限在庫 → null（＝従来の実在庫表示）。
+// n4・上乗せ分は curStock で現在値（編集反映）を取る。負値・無限は安全側で上乗せ0扱い。
+function cutStockInfo(g,L,G){
+  const rule=cutRuleFor(g,L,G); if(!rule) return null;
+  const src=g.cells[rule.fromLen+'|'+G]; if(!src) return null;   // 同カードの4m×同gradeセル
+  if(src.infinite) return null;                                  // 4m無限在庫は潤沢扱いしない＝上乗せなし
+  const gi4=(src._gi!=null)?src._gi:g.gi;                        // 統合カードは元グループのgiで現在値取得
+  const n4=+curStock(gi4,src);
+  if(!(n4>0)) return null;                                       // 0・負値・NaN → 従来表示
+  return {add:n4*rule.factor, n4:n4, factor:rule.factor, label:rule.label, fromLen:rule.fromLen};
+}
 // 価格はYahoo/楽天を独立に保持（楽天は入数/送料込みで体系が違うため別欄）
 function curPriceY(gi,c){ const k=ckey(gi,c.length,c.grade); const e=edits[k]; return (e&&'priceY'in e)?e.priceY:(c.yahoo?(+c.yahoo.price||0):0); }
 function curPriceR(gi,c){ const k=ckey(gi,c.length,c.grade); const e=edits[k]; return (e&&'priceR'in e)?e.priceR:(c.rakuten?(+c.rakuten.price||0):0); }
@@ -947,8 +969,13 @@ function cardHTML(g,mode){
       const s=curStock(cgi,c), p=curPriceDisp(cgi,c);
       const sDisp=c.infinite?'∞':s;
       const ed=isEdited(cgi,c)?' edited':'';
-      let cls,main;
-      if(mode==='stock'){ cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; }
+      let cls,main,cutSub='';
+      if(mode==='stock'){
+        const ci=(!c.infinite)?cutStockInfo(g,L,G):null;
+        if(ci){ const total=s+ci.add; cls='bg-'+stockBucket(total); main=total;   // 合計を主表示（色も合計で判定）
+          cutSub='<span class="uns cutbd" title="実2m在庫'+s+'束＋4m小節の木取り分（4m在庫'+ci.n4+'束×'+ci.factor+'）">実'+s+'＋切'+ci.add+'</span>'; }
+        else { cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; }
+      }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
       else if(mode==='order'){ if(reorderExcluded(g)){ cls='bg-u'; main='対象外'; } else { const dl=cellDaysLeftC(cgi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); } }
       else if(mode==='point'){ if(!c.rakuten){ cls='bg-u'; main='—'; } else { const rt=rkPointFor(c); main=(rt==null?'…':rt+'倍'); cls=(rt!=null&&rt>1)?'bg-g':'bg-u'; } }
@@ -965,7 +992,7 @@ function cardHTML(g,mode){
       const sub=showStale
         ? '<span class="uns b-'+staleCls+'" title="最終販売からの経過">🕐 '+(c.infinite?'—':staleShort(c.combined))+'</span>'
         : '<span class="stk">在庫 '+sDisp+'</span>';
-      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'">'+tag+'<span class="age">'+main+'</span>'+sub+'</div></td>';
+      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'">'+tag+'<span class="age">'+main+'</span>'+(cutSub||sub)+'</div></td>';
     }).join('');
     return '<tr><th>'+L+bd+'</th>'+tds+'</tr>';
   }).join('');
@@ -1091,6 +1118,7 @@ function openDrawer(gi,key){
     + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）</div>'
     + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div>'
     + ((+c.reserved||0)>0?'<div class="orig" style="color:var(--o-ink);font-weight:700">🔒 加工予定に引当 '+c.reserved+'枚（≈'+(Math.round(c.reserved/(BUNDLE[c.length]||1)*10)/10)+'束）— モールへは在庫からこの分を引いて送信</div>':'')
+    + (cutRuleFor(g,c.length,c.grade)?'<div class="orig" style="color:var(--o-ink);font-weight:700">※表示在庫には4m小節の木取り分(×2)を含む／ここで編集するのは実2m在庫</div>':'')
     + '</div>';
   // 販売履歴（ボードに同梱済み＝即表示）。「○枚入 × ○セット」表記。
   const fmtSale=(x)=>{ const amt=x.bundle>0?(x.bundle+'枚入 × '+x.sets+'セット'):(x.sets+'セット'+(x.pieces?'（'+x.pieces+'枚）':'')); return '<div class="hist-row"><span class="hist-d">'+x.date+'</span><span class="dot '+(x.platform==='yahoo'?'yh':'rk')+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(x.platform==='rakuten'?'楽天':'-'))+'</span><span class="hist-q">'+amt+'</span></div>'; };
