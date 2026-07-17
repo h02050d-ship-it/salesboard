@@ -595,10 +595,28 @@ let refreshTimer=null;                  // 定期裏更新タイマー
 const ckey=(gi,L,G)=>gi+'|'+L+'|'+G;
 
 // ログイン情報: この端末に保持（localStorage）＝次回以降は自動ログイン。サーバ照合は毎回通す（失効時はゲートへ戻す）。
-function creds(){ try{ return JSON.parse(localStorage.getItem(CRED_KEY)||sessionStorage.getItem(CRED_KEY)||'{}'); }catch(e){ return {}; } }
+// 共通SSO: h02050d-ship-it.github.io の他ツールのログインを引き継ぐ
+const SSO_KEY='hayazai_sso_cred';
+const SSO_PEERS=['hayazai_board_cred','hayazai_seiso_cred','hayazai_rulebook_cred','hayazai_kaizen_cred','notify_creds_v1','seinodesk_cred','faxdesk_cred','orderdesk_cred','nippou_cred'];
+function ssoFind_(){
+  const keys=[SSO_KEY].concat(SSO_PEERS);
+  for(const k of keys){
+    try{ const v=JSON.parse(localStorage.getItem(k)||'null');
+      if(v){ const email=v.email||v.e, pass=v.pass||v.p; if(email&&pass) return {email:String(email),pass:String(pass)}; }
+    }catch(e){}
+  }
+  return null;
+}
+function ssoWrite(email,pass){ try{ localStorage.setItem(SSO_KEY,JSON.stringify({email:email,pass:pass})); }catch(e){} }
+function ssoClear(){ try{ localStorage.removeItem(SSO_KEY); }catch(e){} }
+function creds(){
+  try{ const v=JSON.parse(localStorage.getItem(CRED_KEY)||sessionStorage.getItem(CRED_KEY)||'null'); if(v&&v.email&&v.pass) return v; }catch(e){}
+  const s=ssoFind_(); if(s){ try{ localStorage.setItem(CRED_KEY,JSON.stringify(s)); }catch(e){} return s; }
+  return {};
+}
 function authQS(){ const c=creds(); return 'email='+encodeURIComponent(c.email||'')+'&pass='+encodeURIComponent(c.pass||''); }
-function saveCreds(email,pass){ const v=JSON.stringify({email,pass}); localStorage.setItem(CRED_KEY,v); try{ sessionStorage.removeItem(CRED_KEY); }catch(e){} }
-function clearCreds(){ localStorage.removeItem(CRED_KEY); sessionStorage.removeItem(CRED_KEY); try{localStorage.removeItem(CACHE_KEY);}catch(e){} }
+function saveCreds(email,pass){ const v=JSON.stringify({email,pass}); localStorage.setItem(CRED_KEY,v); try{ sessionStorage.removeItem(CRED_KEY); }catch(e){} ssoWrite(email,pass); }
+function clearCreds(){ localStorage.removeItem(CRED_KEY); sessionStorage.removeItem(CRED_KEY); try{localStorage.removeItem(CACHE_KEY);}catch(e){} ssoClear(); }
 
 /* ===== 起動 ===== */
 // 旧sessionStorage保存分を localStorage へ引き継いでから削除（端末での自動ログイン永続化）
