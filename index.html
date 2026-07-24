@@ -996,7 +996,7 @@ function cardHTML(g,mode){
         const ci=cutStockInfo(g,L,G);
         if(ci && !c.infinite){ const total=s+ci.add; cls='bg-'+stockBucket(total); main=total; stockNum=total;   // 合計を主表示（色も合計で判定）
           cutSub='<span class="uns cutbd" title="実2m在庫'+s+'束＋4m小節の木取り分（4m在庫'+ci.n4+'束×'+ci.factor+'）">実'+s+'＋切'+ci.add+'</span>'; }
-        else if(ci && c.infinite){ cls='bg-g'; main=sDisp;   // EC無限在庫セルは∞のまま、内訳だけ添える
+        else if(ci && c.infinite){ cls='bg-g'; main=sDisp; stockNum=s+ci.add;   // EC無限在庫セルは∞のまま、内訳＋換算は実質在庫(実+切)で出す
           cutSub='<span class="uns cutbd" title="EC上は無限在庫。実2m在庫'+s+'束＋4m小節の木取り分（4m在庫'+ci.n4+'束×'+ci.factor+'）＝'+(s+ci.add)+'束">実'+s+'＋切'+ci.add+'</span>'; }
         else { cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; stockNum=c.infinite?null:s; }
       }
