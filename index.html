@@ -141,6 +141,8 @@
   .stkmode .cell .uns,.prmode .cell .uns{display:block}
   .uns.b-g{color:var(--g-ink)} .uns.b-y{color:var(--y-ink)} .uns.b-o{color:var(--o-ink)} .uns.b-r{color:var(--r-ink)} .uns.b-u{color:var(--u-ink)}
   .cell .uns.cutbd{color:inherit;opacity:.82;font-weight:700}
+  .cell .uns.bdsub{color:inherit;opacity:.62;font-weight:700;margin-top:2px}
+  .stkmode .cell{height:60px}   /* 換算サブ行(910=10枚/2000=8枚)を入れるため在庫モードだけ高くする */
   .ordmode .cell .age{font-size:13px}
   .ptmode .cell .age{font-size:15px} .ptmode .cell .stk{display:none}
 
@@ -526,6 +528,8 @@ function yen(n){ return '¥'+(Number(n)||0).toLocaleString(); }
 // 最終販売からの経過を「売れてない期間」として短く（在庫・価格モードのセル下段用）
 function staleShort(d){ if(d===null||d===undefined) return '実績なし'; if(d<1) return '本日'; if(d<30) return d+'日'; const y=Math.floor(d/365), m=Math.floor((d%365)/30); return (y>0?y+'年':'')+m+'か月'; }
 const BUNDLE={910:20,2000:20,3000:10,4000:8};
+// 在庫モードで併記する「別入数での換算」。910は10枚束・2000(2m)は8枚束で数えたい（2026-07-21 ユーザー指示）
+const SUB_BUNDLE={910:10,2000:8};
 const LEN_ORDER=[910,2000,3000,4000], GRADE_ORDER=['丸節','小節','特上小','無節'];
 const WIDTH2GROUP={'120mm幅':'標準','105mm幅':'幅狭','オリジナル':'オリジナル'};
 
@@ -987,14 +991,14 @@ function cardHTML(g,mode){
       const s=curStock(cgi,c), p=curPriceDisp(cgi,c);
       const sDisp=c.infinite?'∞':s;
       const ed=isEdited(cgi,c)?' edited':'';
-      let cls,main,cutSub='';
+      let cls,main,cutSub='',stockNum=null;   // stockNum=換算サブ表示に使う束数（∞はnull）
       if(mode==='stock'){
         const ci=cutStockInfo(g,L,G);
-        if(ci && !c.infinite){ const total=s+ci.add; cls='bg-'+stockBucket(total); main=total;   // 合計を主表示（色も合計で判定）
+        if(ci && !c.infinite){ const total=s+ci.add; cls='bg-'+stockBucket(total); main=total; stockNum=total;   // 合計を主表示（色も合計で判定）
           cutSub='<span class="uns cutbd" title="実2m在庫'+s+'束＋4m小節の木取り分（4m在庫'+ci.n4+'束×'+ci.factor+'）">実'+s+'＋切'+ci.add+'</span>'; }
         else if(ci && c.infinite){ cls='bg-g'; main=sDisp;   // EC無限在庫セルは∞のまま、内訳だけ添える
           cutSub='<span class="uns cutbd" title="EC上は無限在庫。実2m在庫'+s+'束＋4m小節の木取り分（4m在庫'+ci.n4+'束×'+ci.factor+'）＝'+(s+ci.add)+'束">実'+s+'＋切'+ci.add+'</span>'; }
-        else { cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; }
+        else { cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; stockNum=c.infinite?null:s; }
       }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
       else if(mode==='order'){ if(reorderExcluded(g)){ cls='bg-u'; main='対象外'; } else { const dl=cellDaysLeftC(cgi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); } }
@@ -1012,7 +1016,13 @@ function cardHTML(g,mode){
       const sub=showStale
         ? '<span class="uns b-'+staleCls+'" title="最終販売からの経過">🕐 '+(c.infinite?'—':staleShort(c.combined))+'</span>'
         : '<span class="stk">在庫 '+sDisp+'</span>';
-      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'">'+tag+'<span class="age">'+main+'</span>'+(cutSub||sub)+'</div></td>';
+      // 別入数での換算在庫をサブ表示（910=10枚束・2000=8枚束）。シート束はどちらも20枚なので 910×2 / 2000×2.5(切捨)
+      let bdSub='';
+      if(mode==='stock' && SUB_BUNDLE[L] && stockNum!=null){
+        const per=BUNDLE[L]||20, pieces=stockNum*per, n=Math.floor(pieces/SUB_BUNDLE[L]);
+        bdSub='<span class="uns bdsub" title="'+stockNum+'束×'+per+'枚＝'+pieces+'枚 → '+SUB_BUNDLE[L]+'枚入なら '+n+'束">'+SUB_BUNDLE[L]+'枚 '+n+'束</span>';
+      }
+      return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'">'+tag+'<span class="age">'+main+'</span>'+(cutSub||sub)+bdSub+'</div></td>';
     }).join('');
     return '<tr><th>'+L+bd+'</th>'+tds+'</tr>';
   }).join('');
