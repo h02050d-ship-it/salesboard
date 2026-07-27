@@ -64,6 +64,11 @@
   .pgap-alert:hover{color:#fff!important;background:#973c06!important;filter:brightness(1.05)}
   .pgap-alert .rkbadge{color:#b54708}
   @media (prefers-reduced-motion:reduce){.pgap-alert{animation:none}}
+  /* 楽天 倉庫指定のまま＝売り逃しアラート（紫系で区別） */
+  .rkhid-alert{color:#fff!important;background:#6741d9!important;border:0!important;font-size:13.5px;font-weight:900;padding:9px 15px;box-shadow:0 3px 10px rgba(103,65,217,.4);animation:rkpulse 1.4s ease-in-out infinite;position:relative}
+  .rkhid-alert:hover{color:#fff!important;background:#5a35c8!important;filter:brightness(1.05)}
+  .rkhid-alert .rkbadge{color:#6741d9}
+  @media (prefers-reduced-motion:reduce){.rkhid-alert{animation:none}}
   .hz-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(140%);transition:transform .28s cubic-bezier(.2,.9,.3,1.2);z-index:60;max-width:min(92vw,460px);background:#2b2b3a;color:#fff;padding:13px 18px;border-radius:13px;box-shadow:0 12px 34px rgba(0,0,0,.35);font-size:13px;font-weight:700;line-height:1.6;text-align:center}
   .hz-toast.show{transform:translateX(-50%) translateY(0)}
   .hz-toast b{color:#ffd27a}
@@ -375,6 +380,7 @@
   </div>
   <button id="rkTodoBtn" class="tbtn rktodo-alert" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none">⚠️ 楽天 未反映 <span class="rkbadge" id="rkTodoN">0</span>件 → 要手動更新</button>
   <button id="pgapBtn" class="tbtn pgap-alert" title="楽天とヤフーの価格がヤフー基準（910=×2/他=同額）からズレている規格。RMSで合わせる" style="display:none">🔺 楽天⇔ヤフー 価格ズレ <span class="rkbadge" id="pgapN">0</span>件</button>
+  <button id="rkhidBtn" class="tbtn rkhid-alert" title="在庫があるのに楽天の商品が倉庫指定（非表示）のまま＝売り逃し。RMSで販売中に戻す" style="display:none">📦 楽天 倉庫のまま <span class="rkbadge" id="rkhidN">0</span>件 → 売り逃し</button>
   <select id="sortSel">
     <option value="stock">並び: 在庫が多い順</option>
     <option value="order">並び: 在庫切れが近い順</option>
@@ -487,6 +493,18 @@
     </div>
     <div class="rank-note">ボードで変更した価格・ポイントのうち、<b>楽天へ自動反映できなかったもの</b>（楽天のAPI反映は有料オプションのため）。<b>🤖ボタンでClaudeへの反映依頼をコピー</b>→Claudeに貼り付けると、Claudeが楽天RMS（ログイン済みChrome）を操作して「新しい値」に更新します（保存前に一覧提示・確認）。反映後はこのリストから自動で消えます。手動でやった場合は <b>✓済</b> を押してください。</div>
     <div class="rank-body" id="rkTodoBody"></div>
+  </div>
+</div>
+
+<!-- 楽天 倉庫指定（売り逃し）モーダル -->
+<div class="rank-modal" id="rkhidModal">
+  <div class="rank-box">
+    <div class="rkh">
+      <h3>📦 楽天 倉庫のまま（売り逃し）</h3>
+      <button class="x" id="rkhidX">✕</button>
+    </div>
+    <div class="rank-note"><b>在庫があるのに楽天の商品が「倉庫指定（非表示）」のまま</b>の規格です。お客様から見えず販売機会を逃しています。<b>RMS編集↗から「倉庫指定」をOFF（販売中）に</b>してください。毎朝自動スキャン＋ここの🔄で再スキャンできます（全SKU確認のため1分ほどかかります）。</div>
+    <div class="rank-body" id="rkhidBody"></div>
   </div>
 </div>
 
@@ -709,6 +727,7 @@ function applyData(j,fromCache){
   const sb=document.getElementById('sheetBtn'); if(sb&&j.sheetUrl){ sb.href=j.sheetUrl; sb.style.display=''; }
   if(typeof j.rktodo==='number'){ RKTODO_N=j.rktodo; updateRkTodoBadge(); }
   if(typeof j.priceGapN==='number'){ PGAP_N=j.priceGapN; updatePgapBadge(); }
+  if(typeof j.rkHiddenN==='number'){ RKHID_N=j.rkHiddenN; updateRkhidBadge(); }
   SOURCE='live';
   document.getElementById('gate').style.display='none';
   document.getElementById('demoBan').style.display='none';
@@ -1838,6 +1857,50 @@ function pgapClaudeAll(){ pgapClaudeReq(PGAP.slice()); }
 document.getElementById('pgapBtn').onclick=openPgap;
 document.getElementById('pgapX').onclick=closePgap;
 document.getElementById('pgapModal').onclick=(e)=>{ if(e.target.id==='pgapModal') closePgap(); };
+
+/* ===== 楽天 倉庫指定（在庫あるのに非表示＝売り逃し）検知 ===== */
+let RKHID=[]; let RKHID_N=0;
+function updateRkhidBadge(){
+  const b=document.getElementById('rkhidBtn'); if(!b) return;
+  b.style.display=RKHID_N>0?'':'none';
+  document.getElementById('rkhidN').textContent=RKHID_N;
+}
+function openRkhid(){
+  document.getElementById('rkhidModal').classList.add('show');
+  document.getElementById('rkhidBody').innerHTML='<div class="rank-empty"><span class="spin sm"></span>読み込み中…</div>';
+  fetch(GAS_URL+'?api=rkhidden&'+authQS()).then(r=>r.json()).then(j=>{
+    if(j&&j.ok){ RKHID=j.items||[]; RKHID_N=RKHID.length; updateRkhidBadge(); renderRkhid(j.at); }
+    else document.getElementById('rkhidBody').innerHTML='<div class="rank-empty">読み込み失敗: '+((j&&j.error)||'不明')+'</div>';
+  }).catch(e=>{ document.getElementById('rkhidBody').innerHTML='<div class="rank-empty">通信失敗</div>'; });
+}
+function closeRkhid(){ document.getElementById('rkhidModal').classList.remove('show'); }
+async function refreshRkhid(){
+  document.getElementById('rkhidBody').innerHTML='<div class="rank-empty"><span class="spin sm"></span>全SKUを再スキャン中…（1分ほどかかります）</div>';
+  try{
+    const j=await fetch(GAS_URL+'?api=rkhidden&fresh=1&'+authQS()).then(r=>r.json());
+    if(j&&j.ok){ RKHID=j.items||[]; RKHID_N=RKHID.length; updateRkhidBadge(); renderRkhid(j.at); }
+    else document.getElementById('rkhidBody').innerHTML='<div class="rank-empty">再スキャン失敗: '+((j&&j.error)||'不明')+'</div>';
+  }catch(e){ document.getElementById('rkhidBody').innerHTML='<div class="rank-empty">通信失敗（時間切れの可能性・少し待って開き直してください）</div>'; }
+}
+function renderRkhid(at){
+  const body=document.getElementById('rkhidBody');
+  const head='<div style="display:flex;justify-content:space-between;align-items:center;margin:-2px 0 8px"><span style="font-size:11px;color:var(--sub)">最終スキャン: '+(at||'—')+'</span><button class="tbtn" onclick="refreshRkhid()">🔄 今すぐ再スキャン</button></div>';
+  if(!RKHID.length){ body.innerHTML=head+'<div class="rank-empty">売り逃しはありません 🎉（在庫ありの商品はすべて販売中）</div>'; return; }
+  body.innerHTML=head+RKHID.map(t=>{
+    const edit=RMS_EDIT_BASE+t.code;
+    const shop=(MALLBASE.rakuten&&t.code)?(MALLBASE.rakuten+t.code+'/'):'';
+    return '<div class="rrow" style="cursor:default">'
+      +'<div class="ri"><div class="t">'+t.tag+'　<span style="color:var(--sub);font-family:ui-monospace,monospace;font-size:10px">'+t.code+'</span></div>'
+      +'<div class="s">📦 倉庫指定（非表示）のまま</div></div>'
+      +'<div class="rv" style="min-width:78px">'+t.stock+'束<small>在庫あり</small></div>'
+      +'<a class="tbtn" target="_blank" rel="noopener" href="'+edit+'" style="text-decoration:none" title="RMSの商品編集で倉庫指定をOFFに">RMS編集↗</a>'
+      +(shop?'<a class="tbtn" target="_blank" rel="noopener" href="'+shop+'" style="text-decoration:none">商品↗</a>':'')
+      +'</div>';
+  }).join('');
+}
+document.getElementById('rkhidBtn').onclick=openRkhid;
+document.getElementById('rkhidX').onclick=closeRkhid;
+document.getElementById('rkhidModal').onclick=(e)=>{ if(e.target.id==='rkhidModal') closeRkhid(); };
 function normWsType(name){ return String(name||'').replace(/桧/g,'').trim(); }   // 桧フローリング→フローリング
 function buildWsMap(ws){
   const map={};
