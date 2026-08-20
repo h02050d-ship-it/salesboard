@@ -244,7 +244,9 @@
   .mall{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:12px;margin-bottom:10px}
   .mall .ml{font-size:13px;font-weight:800;display:flex;align-items:center;gap:7px}
   .mall .dot{width:9px;height:9px;border-radius:50%}
-  .mall .yh{background:#ff2e6e}.mall .rk{background:#bf0000}
+  .mall .yh{background:#ff2e6e}.mall .rk{background:#bf0000}.mall .ic{background:#1d7a46}
+  .hist-row .dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+  .hist-row .yh{background:#ff2e6e}.hist-row .rk{background:#bf0000}.hist-row .ic{background:#1d7a46}
   .mall .md{text-align:right}
   .mall .md .d{font-size:15px;font-weight:800}
   .mall .md .s{font-size:10.5px;color:var(--sub);margin-top:2px}
@@ -1053,7 +1055,7 @@ function setLegend(mode,LT){
   const L=(items)=>items.map(x=>'<span><i style="background:var(--'+x[0]+')"></i>'+x[1]+'</span>').join('');
   let html;
   if(mode==='order') html=L([['r','〜'+LT+'日(要発注)'],['o','〜'+(LT*2)+'日'],['y','〜'+(LT*4)+'日'],['g','十分/∞'],['u','実績なし']]);
-  else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']])+'<span>　🕐＝最終販売からの経過（色＝滞留度）</span>';
+  else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']])+'<span>　🕐＝最終販売・市場出荷からの経過（色＝滞留度）</span>';
   else if(mode==='point') html=L([['g','変倍あり(2倍〜)'],['u','1倍(変倍なし)']])+'<span>　—＝楽天SKUなし（楽天=表示/編集可・Yahoo=手動）</span>';
   else html=L([['g','〜2か月'],['y','2か月〜'],['o','半年〜'],['r','1年〜'],['u','不明']])+'<span>　色＝🕐売れてない期間 / 数字＝価格</span>';
   document.getElementById('legend').innerHTML=html;
@@ -1170,8 +1172,10 @@ function openDrawer(gi,key){
     + (cutRuleFor(g,c.length,c.grade)?'<div class="orig" style="color:var(--o-ink);font-weight:700">※表示在庫には4m小節の木取り分(×2)を含む／ここで編集するのは実2m在庫</div>':'')
     + '</div>';
   // 販売履歴（ボードに同梱済み＝即表示）。「○枚入 × ○セット」表記。
-  const fmtSale=(x)=>{ const amt=x.bundle>0?(x.bundle+'枚入 × '+x.sets+'セット'):(x.sets+'セット'+(x.pieces?'（'+x.pieces+'枚）':'')); return '<div class="hist-row"><span class="hist-d">'+x.date+'</span><span class="dot '+(x.platform==='yahoo'?'yh':'rk')+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(x.platform==='rakuten'?'楽天':'-'))+'</span><span class="hist-q">'+amt+'</span></div>'; };
-  const histBlock='<div class="hist"><div class="et">📋 販売履歴（直近5件）</div>'+((c.history&&c.history.length)?c.history.map(fmtSale).join(''):'<div class="hist-empty">販売記録なし</div>')+'</div>';
+  const fmtSale=(x)=>{ const ic=x.platform==='ichiba';
+    const amt=ic?(x.sets+'束'+(x.customer?'・'+String(x.customer).replace(/[<>&"]/g,''):'')):(x.bundle>0?(x.bundle+'枚入 × '+x.sets+'セット'):(x.sets+'セット'+(x.pieces?'（'+x.pieces+'枚）':'')));
+    return '<div class="hist-row"><span class="hist-d">'+x.date+'</span><span class="dot '+(x.platform==='yahoo'?'yh':(ic?'ic':'rk'))+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(ic?'市場':(x.platform==='rakuten'?'楽天':'-')))+'</span><span class="hist-q">'+amt+'</span></div>'; };
+  const histBlock='<div class="hist"><div class="et">📋 販売出荷履歴（直近5件・EC＋市場）</div>'+((c.history&&c.history.length)?c.history.map(fmtSale).join(''):'<div class="hist-empty">販売記録なし</div>')+'</div>';
   // 売れ行きサマリ（直近30/90日＋在庫切れ予測）
   const dl=cellDaysLeftC(gi,c), LT=getLeadTime();   // 共有在庫は合算日販＝帯・メールと同じ計算
   const excl=reorderExcluded(g);
@@ -1184,6 +1188,7 @@ function openDrawer(gi,key){
   document.getElementById('dBody').innerHTML=
     '<div class="combined bg-'+bk+'"><div class="big">'+ageShort(c.combined)+'</div><div><div class="cl">直近に売れてからの経過</div><div class="cl" style="opacity:.6;font-weight:600">'+ageLong(c.combined)+'</div></div></div>'
    + mallHTML('Yahoo!','yh',c.yahoo,'yahoo') + mallHTML('楽天','rk',c.rakuten,'rakuten')
+   + (c.ichiba?mallHTML('市場出荷','ic',c.ichiba,'ichiba'):'')
    + salesBlock
    + reorderSnoozeBlock(g,c)
    + pchgBlock(g,c)
@@ -2045,7 +2050,7 @@ function buildCountHTML(blocks){
     +'<div class="noprint" style="text-align:center;margin-top:10px"><button onclick="window.print()" style="padding:9px 24px;font-size:13px;font-weight:bold;cursor:pointer;border-radius:8px;border:1px solid #333;background:#fff">🖨 印刷する</button></div>'
     +'</body></html>';
 }
-document.getElementById('foot').innerHTML='色＝最終販売からの経過（Yahoo・楽天の直近販売基準）。空欄＝該当規格なし／無限在庫。在庫は<b>束</b>表示。計算ロジックはスプシ <code>getUnsoldProds_()</code> と一致。'
+document.getElementById('foot').innerHTML='色＝最終販売・出荷からの経過（Yahoo・楽天の直近販売＋A級は市場出荷も含む）。空欄＝該当規格なし／無限在庫。在庫は<b>束</b>表示。'
  +' &nbsp;|&nbsp; 在庫＝資産情報のため合言葉で保護。価格はYahoo・楽天をそれぞれ独立に編集して各モールへ反映（楽天は入数/送料込み体系が違うため別欄で実価格を入力）。';
 
 boot();
