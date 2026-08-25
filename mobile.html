@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>在庫入力（スマホ）</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%237a5c3e'/><text x='51' y='46.5' font-size='68' text-anchor='middle' dominant-baseline='central' fill='%23ffffff' font-family='sans-serif' font-weight='bold'>入</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%237a5c3e'/><text x='51' y='46.5' font-size='68' text-anchor='middle' dominant-baseline='central' fill='%23ffffff' font-family='sans-serif' font-weight='bold'>入</text></svg>">
+<meta name="theme-color" content="#7a5c3e">
+<meta name="apple-mobile-web-app-title" content="在庫入力">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+  :root{
+    --bg:#f4f1ea; --card:#fffdf8; --ink:#2c2a26; --sub:#7a756c; --line:#e3ddd0;
+    --accent:#7a5c3e; --accent2:#a87f53; --shadow:0 1px 3px rgba(60,45,25,.08),0 6px 20px rgba(60,45,25,.06);
+    --edit:#1a7f37; --editbg:#1a7f3714;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1c1a17; --card:#26231f; --ink:#ece7dd; --sub:#9c958a; --line:#3a352e;
+      --accent:#caa777; --accent2:#a87f53; --shadow:0 1px 3px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+      --edit:#6fce8a; --editbg:#1a7f3726;
+    }
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--ink);font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic UI","Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  body{padding:0 0 110px}
+  a{color:var(--accent)}
+  button{font-family:inherit}
+
+  header{position:sticky;top:0;z-index:30;background:var(--card);border-bottom:1px solid var(--line)}
+  .head{display:flex;align-items:center;gap:10px;padding:10px 14px}
+  .logo{flex:0 0 auto;width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:grid;place-items:center;color:#fff;font-weight:800;font-size:17px}
+  .head h1{font-size:15.5px;font-weight:800;line-height:1.15}
+  .head .sub{font-size:10.5px;color:var(--sub);margin-top:1px}
+  .head .sp{margin-left:auto;display:flex;gap:7px;align-items:center}
+  .hbtn{font-size:12px;font-weight:700;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:7px 11px;cursor:pointer;text-decoration:none;white-space:nowrap}
+  .chips{display:flex;gap:6px;padding:8px 14px 10px;overflow-x:auto}
+  .chip{flex:0 0 auto;font-size:12.5px;font-weight:700;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg);color:var(--sub);cursor:pointer}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  .note{margin:10px 14px 0;padding:9px 12px;border:1px solid var(--line);border-radius:11px;background:var(--card);font-size:11.5px;color:var(--sub);line-height:1.55}
+  .note b{color:var(--ink)}
+
+  .sec{margin:14px 12px 0}
+  .sec h2{font-size:13px;font-weight:800;padding:0 3px 7px;display:flex;align-items:center;gap:7px}
+  .sec h2 .tag{font-size:10px;font-weight:700;color:var(--sub);border:1px solid var(--line);border-radius:6px;padding:2px 6px;background:var(--card)}
+  .rows{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);overflow:hidden}
+  .row{display:flex;align-items:center;gap:10px;padding:12px 13px;border-bottom:1px solid var(--line);cursor:pointer;-webkit-tap-highlight-color:rgba(122,92,62,.12)}
+  .row:last-child{border-bottom:0}
+  .row:active{background:var(--bg)}
+  .row .nm{flex:1;min-width:0}
+  .row .nm .t{font-size:15px;font-weight:800}
+  .row .nm .t .len{letter-spacing:.02em}
+  .row .nm .t .bq{font-size:10.5px;font-weight:700;color:#fff;background:var(--accent2);border-radius:5px;padding:1.5px 5px;margin-left:6px;vertical-align:2px}
+  .row .nm .s{font-size:10.5px;color:var(--sub);margin-top:2.5px}
+  .row .val{text-align:right}
+  .row .val .n{font-size:21px;font-weight:800;line-height:1}
+  .row .val .n small{font-size:11px;font-weight:700;color:var(--sub)}
+  .row .val .c{font-size:10px;color:var(--sub);margin-top:3px}
+  .row.edited{background:var(--editbg)}
+  .row.edited .val .n{color:var(--edit)}
+  .row.inf{cursor:default;opacity:.6}
+
+  /* 下からのシート（入力パネル） */
+  .ovl{position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:40;display:none}
+  .ovl.show{display:block}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:41;background:var(--card);border-radius:20px 20px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.25);padding:16px 16px calc(18px + env(safe-area-inset-bottom));transform:translateY(105%);transition:transform .2s ease;max-height:88vh;overflow-y:auto}
+  .sheet.show{transform:translateY(0)}
+  .sheet .grab{width:40px;height:4px;border-radius:2px;background:var(--line);margin:0 auto 12px}
+  .sheet h3{font-size:16.5px;font-weight:800}
+  .sheet .meta{font-size:11.5px;color:var(--sub);margin-top:3px;line-height:1.5}
+  .bigbox{display:flex;align-items:center;justify-content:center;gap:9px;margin:16px 0 6px}
+  .stp{width:56px;height:56px;border-radius:14px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:18px;font-weight:800;cursor:pointer}
+  .stp:active{background:var(--line)}
+  .bigin{width:108px;height:64px;text-align:center;font-size:30px;font-weight:800;font-family:inherit;color:var(--ink);background:var(--bg);border:2px solid var(--accent);border-radius:14px}
+  .unitlab{text-align:center;font-size:12px;color:var(--sub);font-weight:700}
+  .hasu{display:flex;align-items:center;justify-content:center;gap:8px;margin:14px 0 4px}
+  .hasu .lab{font-size:12.5px;font-weight:700;color:var(--sub)}
+  .hasu input{width:64px;height:44px;text-align:center;font-size:19px;font-weight:800;font-family:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:11px}
+  .hasu .stp2{width:44px;height:44px;border-radius:11px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:16px;font-weight:800;cursor:pointer}
+  .conv{margin:12px 0 4px;padding:10px 12px;background:var(--bg);border:1px dashed var(--line);border-radius:11px;text-align:center;font-size:13px;line-height:1.6}
+  .conv b{font-size:15px}
+  .conv .ec{color:var(--accent);font-weight:800}
+  .sheet .btns{display:flex;gap:9px;margin-top:15px}
+  .sheet .btns button{flex:1;height:50px;border-radius:13px;font-size:15.5px;font-weight:800;cursor:pointer;border:1px solid var(--line)}
+  .btn-cancel{background:var(--bg);color:var(--sub)}
+  .btn-ok{background:var(--accent);border-color:var(--accent)!important;color:#fff}
+
+  /* 保存バー */
+  .savebar{position:fixed;left:0;right:0;bottom:0;z-index:35;padding:10px 14px calc(12px + env(safe-area-inset-bottom));background:var(--card);border-top:1px solid var(--line);display:none;gap:9px}
+  .savebar.show{display:flex}
+  .savebar .undo{flex:0 0 auto;padding:0 16px;height:52px;border-radius:13px;border:1px solid var(--line);background:var(--bg);color:var(--sub);font-size:13px;font-weight:800;cursor:pointer}
+  .savebar .save{flex:1;height:52px;border-radius:13px;border:0;background:var(--accent);color:#fff;font-size:16px;font-weight:800;cursor:pointer;box-shadow:var(--shadow)}
+  .savebar .save:disabled{opacity:.6}
+
+  /* ログインゲート */
+  #gate{position:fixed;inset:0;z-index:50;background:var(--bg);display:none;align-items:center;justify-content:center;padding:20px}
+  .gatebox{width:100%;max-width:340px;background:var(--card);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:26px 22px;text-align:center}
+  .gatebox .logo{margin:0 auto 12px;width:46px;height:46px;font-size:22px;border-radius:12px}
+  .gatebox h2{font-size:16px;font-weight:800;margin-bottom:4px}
+  .gatebox p{font-size:11.5px;color:var(--sub);margin-bottom:14px}
+  .gatebox input{width:100%;font-size:15px;font-family:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:12px 13px;margin-bottom:9px}
+  .gatebox button{width:100%;height:48px;border:0;border-radius:11px;background:var(--accent);color:#fff;font-size:15px;font-weight:800;cursor:pointer}
+  #gateErr{color:#a61c00;font-size:11.5px;min-height:16px;margin-bottom:6px}
+
+  .spin{display:inline-block;width:17px;height:17px;border:2.5px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite;vertical-align:-3px;margin-right:8px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #status{text-align:center;color:var(--sub);padding:50px 20px;font-size:13px;line-height:1.7}
+  .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--ink);color:var(--card);font-size:13px;font-weight:700;padding:11px 18px;border-radius:11px;z-index:60;box-shadow:var(--shadow);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="head">
+    <div class="logo">入</div>
+    <div>
+      <h1>在庫入力</h1>
+      <div class="sub" id="subline">スマホ用・タップで在庫修正</div>
+    </div>
+    <div class="sp">
+      <button class="hbtn" id="reloadBtn">🔄</button>
+      <a class="hbtn" href="index.html">📊 ボード</a>
+    </div>
+  </div>
+  <div class="chips" id="chips"></div>
+</header>
+
+<div class="note">数えた<b>実物の束数</b>のまま入力してOK：<b>910=10枚入</b>・<b>2m=8枚入</b>・3m=10枚入・4m=8枚入。ヤフー・楽天へは自動で<b>20枚入（3m=10・4m=8）</b>に換算して在庫反映します。</div>
+
+<div id="list"></div>
+<div id="status"></div>
+
+<div class="savebar" id="savebar">
+  <button class="undo" id="undoBtn">取消</button>
+  <button class="save" id="saveBtn">💾 まとめて保存</button>
+</div>
+
+<div class="ovl" id="ovl"></div>
+<div class="sheet" id="sheet">
+  <div class="grab"></div>
+  <h3 id="shTitle">—</h3>
+  <div class="meta" id="shMeta">—</div>
+  <div class="bigbox">
+    <button class="stp" id="m5">−5</button>
+    <button class="stp" id="m1">−1</button>
+    <input class="bigin" id="bIn" type="text" inputmode="numeric" pattern="[0-9]*">
+    <button class="stp" id="p1">＋1</button>
+    <button class="stp" id="p5">＋5</button>
+  </div>
+  <div class="unitlab" id="unitlab">束（10枚入）</div>
+  <div class="hasu">
+    <span class="lab">端数</span>
+    <button class="stp2" id="hm">−</button>
+    <input id="hIn" type="text" inputmode="numeric" pattern="[0-9]*">
+    <button class="stp2" id="hp">＋</button>
+    <span class="lab">枚</span>
+  </div>
+  <div class="conv" id="conv">—</div>
+  <div class="btns">
+    <button class="btn-cancel" id="shCancel">キャンセル</button>
+    <button class="btn-ok" id="shOk">この在庫にする</button>
+  </div>
+</div>
+
+<div id="gate">
+  <div class="gatebox">
+    <div class="logo">入</div>
+    <h2>在庫入力（スマホ）</h2>
+    <p>ボードと同じメール・パスワードでログイン</p>
+    <input id="gateMail" type="email" placeholder="メールアドレス" autocomplete="username">
+    <input id="gatePass" type="password" placeholder="パスワード" autocomplete="current-password">
+    <div id="gateErr"></div>
+    <button id="gateBtn">ログイン</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxvPjDv81vrJMW2GaqpCJooyxxt7__gvMF4mJkmcGNbNS2xGMoXgTnn6_OEPZ3Rr0spdg/exec";
+const CRED_KEY='hayazai_board_cred';
+const CACHE_KEY='hayazai_board_cache';
+
+/* シート束（=ヤフー・楽天のEC入数）と、倉庫の実物の束の入数 */
+const EC_BUNDLE  ={910:20,2000:20,3000:10,4000:8};
+const PHYS_BUNDLE={910:10,2000:8, 3000:10,4000:8};
+const LEN_ORDER=[910,2000,3000,4000], GRADE_ORDER=['丸節','小節','特上小','無節'];
+const lenLabel=(L)=>({910:'910',2000:'2m',3000:'3m',4000:'4m'})[L]||String(L);
+
+/* ===== 共通SSO（他ツールのログインを引き継ぐ）＝index.htmlと同一 ===== */
+const SSO_KEY='hayazai_sso_cred';
+const SSO_PEERS=['hayazai_board_cred','hayazai_seiso_cred','hayazai_rulebook_cred','hayazai_kaizen_cred','notify_creds_v1','seinodesk_cred','faxdesk_cred','orderdesk_cred','nippou_cred'];
+function ssoFind_(){
+  const keys=[SSO_KEY].concat(SSO_PEERS);
+  for(const k of keys){
+    try{ const v=JSON.parse(localStorage.getItem(k)||'null');
+      if(v){ const email=v.email||v.e, pass=v.pass||v.p; if(email&&pass) return {email:String(email),pass:String(pass)}; }
+    }catch(e){}
+  }
+  return null;
+}
+function creds(){
+  try{ const v=JSON.parse(localStorage.getItem(CRED_KEY)||'null'); if(v&&v.email&&v.pass) return v; }catch(e){}
+  const s=ssoFind_(); if(s){ try{ localStorage.setItem(CRED_KEY,JSON.stringify(s)); }catch(e){} return s; }
+  return {};
+}
+function authQS(){ const c=creds(); return 'email='+encodeURIComponent(c.email||'')+'&pass='+encodeURIComponent(c.pass||''); }
+function saveCreds(email,pass){ try{ localStorage.setItem(CRED_KEY,JSON.stringify({email,pass})); localStorage.setItem(SSO_KEY,JSON.stringify({email,pass})); }catch(e){} }
+function clearCreds(){ try{ localStorage.removeItem(CRED_KEY); }catch(e){} }
+
+/* ===== state ===== */
+let ROWS=[];        // {key, coord, quality, group, typeBase, length, grade, sec, stock(シート束), infinite}
+let SECS=[];        // {id, title, tag, rows:[]}
+let edits={};       // key -> {pieces}
+let FILTER='all';   // all | A | B
+let UPDATED='';
+
+/* ===== 換算 ===== */
+const piecesOf=(r)=> (Number(r.stock)||0)*(EC_BUNDLE[r.length]||20);
+function physDisp(r,pieces){
+  const b=PHYS_BUNDLE[r.length]||20;
+  const t=Math.floor(pieces/b), h=Math.round(pieces-t*b);
+  return {t:t,h:h,b:b};
+}
+function ecSets(r,pieces){ return Math.floor(pieces/(EC_BUNDLE[r.length]||20)); }
+
+/* ===== データ整形（A級標準は原板共通＝coordで1本化） ===== */
+function buildRows(groups){
+  ROWS=[]; SECS=[];
+  const seen={}, secMap={};
+  (groups||[]).forEach(g=>{
+    (g.cells||[]).forEach(c=>{
+      const coord=String(c.coord||'');
+      const key=coord||[g.quality,g.group,g.type,c.length,c.grade].join('|');
+      if(seen[key]) return;
+      seen[key]=1;
+      const sharedA=(g.quality==='A'&&g.group==='標準');
+      const secId=g.quality+'|'+g.group+'|'+(sharedA?'*':g.type);
+      if(!secMap[secId]){
+        const title=sharedA ? 'A級 120mm幅 原板' : (g.quality+'級 '+g.width+' '+g.type);
+        const tag=sharedA ? 'フローリング・羽目板・スノコ共通' : '';
+        secMap[secId]={id:secId,title:title,tag:tag,rows:[]};
+        SECS.push(secMap[secId]);
+      }
+      const row={key:key,coord:coord,quality:g.quality,group:g.group,typeBase:g.type,
+        length:Number(c.length),grade:String(c.grade),stock:Number(c.stock)||0,infinite:!!c.infinite,sec:secId};
+      ROWS.push(row); secMap[secId].rows.push(row);
+    });
+  });
+  SECS.forEach(s=>s.rows.sort((a,b)=>(LEN_ORDER.indexOf(a.length)-LEN_ORDER.indexOf(b.length))||(GRADE_ORDER.indexOf(a.grade)-GRADE_ORDER.indexOf(b.grade))));
+}
+
+/* ===== 描画 ===== */
+function bqLabel(L){
+  const p=PHYS_BUNDLE[L], e=EC_BUNDLE[L];
+  return p===e ? p+'入' : p+'入 <small style="opacity:.85">(EC'+e+'入)</small>';
+}
+function render(){
+  const list=document.getElementById('list');
+  let h='';
+  SECS.forEach(s=>{
+    const q=s.id.charAt(0);
+    if(FILTER!=='all'&&q!==FILTER) return;
+    h+='<div class="sec"><h2>'+s.title+(s.tag?' <span class="tag">'+s.tag+'</span>':'')+'</h2><div class="rows">';
+    s.rows.forEach(r=>{
+      const ed=edits[r.key];
+      const pieces=ed?ed.pieces:piecesOf(r);
+      const d=physDisp(r,pieces);
+      if(r.infinite){
+        h+='<div class="row inf"><div class="nm"><div class="t"><span class="len">'+lenLabel(r.length)+'</span> '+r.grade+'</div><div class="s">無限在庫（常時販売）</div></div><div class="val"><div class="n">∞</div></div></div>';
+        return;
+      }
+      const sub=pieces+'枚 ・ EC('+(EC_BUNDLE[r.length]||20)+'入)'+ecSets(r,pieces)+'セット';
+      h+='<div class="row'+(ed?' edited':'')+'" data-key="'+r.key+'">'
+        +'<div class="nm"><div class="t"><span class="len">'+lenLabel(r.length)+'</span> '+r.grade+'<span class="bq">'+bqLabel(r.length)+'</span></div>'
+        +'<div class="s">'+sub+(ed?'（保存待ち）':'')+'</div></div>'
+        +'<div class="val"><div class="n">'+d.t+'<small>束</small>'+(d.h?('<small>＋'+d.h+'枚</small>'):'')+'</div>'
+        +'<div class="c">'+(ed?'変更あり':'')+'</div></div></div>';
+    });
+    h+='</div></div>';
+  });
+  list.innerHTML=h;
+  list.querySelectorAll('.row[data-key]').forEach(el=>el.onclick=()=>openSheet(el.getAttribute('data-key')));
+  const n=Object.keys(edits).length;
+  const bar=document.getElementById('savebar');
+  bar.classList.toggle('show',n>0);
+  document.getElementById('saveBtn').textContent='💾 まとめて保存（'+n+'件）';
+  document.getElementById('subline').textContent=UPDATED?('更新 '+UPDATED):'スマホ用・タップで在庫修正';
+}
+function renderChips(){
+  const defs=[['all','全部'],['A','A級'],['B','B級']];
+  document.getElementById('chips').innerHTML=defs.map(d=>'<button class="chip'+(FILTER===d[0]?' on':'')+'" data-f="'+d[0]+'">'+d[1]+'</button>').join('');
+  document.querySelectorAll('.chip').forEach(el=>el.onclick=()=>{ FILTER=el.getAttribute('data-f'); renderChips(); render(); });
+}
+
+/* ===== 入力シート ===== */
+let CUR=null;
+function openSheet(key){
+  const r=ROWS.find(x=>x.key===key); if(!r) return;
+  CUR=r;
+  const ed=edits[key];
+  const pieces=ed?ed.pieces:piecesOf(r);
+  const d=physDisp(r,pieces);
+  document.getElementById('shTitle').textContent=lenLabel(r.length)+' '+r.grade;
+  const secT=(SECS.find(s=>s.id===r.sec)||{}).title||'';
+  const cd=physDisp(r,piecesOf(r));
+  document.getElementById('shMeta').innerHTML=secT+'　／　現在 <b>'+cd.t+'束'+(cd.h?('＋'+cd.h+'枚'):'')+'</b>（'+piecesOf(r)+'枚）';
+  document.getElementById('bIn').value=d.t;
+  document.getElementById('hIn').value=d.h;
+  document.getElementById('unitlab').textContent='束（'+d.b+'枚入）';
+  updConv();
+  document.getElementById('ovl').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+}
+function closeSheet(){ document.getElementById('ovl').classList.remove('show'); document.getElementById('sheet').classList.remove('show'); CUR=null; }
+function curPieces(){
+  if(!CUR) return 0;
+  const b=PHYS_BUNDLE[CUR.length]||20;
+  const t=Math.max(0,Math.round(Number(document.getElementById('bIn').value)||0));
+  const h=Math.max(0,Math.round(Number(document.getElementById('hIn').value)||0));
+  return t*b+h;
+}
+function updConv(){
+  if(!CUR) return;
+  const p=curPieces(), e=EC_BUNDLE[CUR.length]||20, b=PHYS_BUNDLE[CUR.length]||20;
+  let h='<b>'+p+'枚</b>';
+  if(e!==b) h+='　→　<span class="ec">EC（'+e+'枚入）'+Math.floor(p/e)+'セット</span>'+(p%e?('<span style="color:var(--sub)">＋'+(p%e)+'枚</span>'):'');
+  else h+='　＝　<span class="ec">EC（'+e+'枚入）'+Math.floor(p/e)+'セット</span>';
+  document.getElementById('conv').innerHTML=h;
+}
+function bump(id,dv,max){
+  const el=document.getElementById(id);
+  el.value=Math.max(0,(Math.round(Number(el.value)||0))+dv);
+  if(max!==undefined&&Number(el.value)>max) el.value=max;
+  updConv();
+}
+document.getElementById('m5').onclick=()=>bump('bIn',-5);
+document.getElementById('m1').onclick=()=>bump('bIn',-1);
+document.getElementById('p1').onclick=()=>bump('bIn',1);
+document.getElementById('p5').onclick=()=>bump('bIn',5);
+document.getElementById('hm').onclick=()=>bump('hIn',-1);
+document.getElementById('hp').onclick=()=>{ if(CUR){ const b=PHYS_BUNDLE[CUR.length]||20; bump('hIn',1,b-1); } };
+['bIn','hIn'].forEach(id=>document.getElementById(id).addEventListener('input',updConv));
+document.getElementById('ovl').onclick=closeSheet;
+document.getElementById('shCancel').onclick=closeSheet;
+document.getElementById('shOk').onclick=()=>{
+  if(!CUR) return;
+  const p=curPieces();
+  if(p===piecesOf(CUR)) delete edits[CUR.key];
+  else edits[CUR.key]={pieces:p};
+  closeSheet(); render();
+};
+
+/* ===== 保存 ===== */
+document.getElementById('undoBtn').onclick=()=>{ edits={}; render(); };
+document.getElementById('saveBtn').onclick=async ()=>{
+  const keys=Object.keys(edits); if(!keys.length) return;
+  const c=creds();
+  const updates=keys.map(k=>{
+    const r=ROWS.find(x=>x.key===k);
+    return {quality:r.quality,group:r.group,typeBase:r.typeBase,length:r.length,grade:r.grade,stockPieces:edits[k].pieces};
+  });
+  const btn=document.getElementById('saveBtn');
+  btn.disabled=true; btn.textContent='保存中…';
+  try{
+    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:c.email,pass:c.pass,updates:updates})});
+    const j=await res.json();
+    if(!j.ok) throw new Error(j.error||'保存失敗');
+    if(j.errors&&j.errors.length) toast('⚠ 一部エラー: '+j.errors[0]);
+    else toast('✅ '+j.applied+'件 保存＆モール反映しました');
+    keys.forEach(k=>{ const r=ROWS.find(x=>x.key===k); if(r) r.stock=Math.round(edits[k].pieces/(EC_BUNDLE[r.length]||20)*100)/100; });
+    edits={};
+    render();
+    fetchLive(true);
+  }catch(e){
+    toast('❌ 保存に失敗: '+e.message+'（電波の良い所で再試行）');
+  }finally{
+    btn.disabled=false; render();
+  }
+};
+
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+}
+
+/* ===== 取得 ===== */
+async function fetchBoardOnce(timeoutMs){
+  const ctrl=new AbortController();
+  const to=setTimeout(()=>ctrl.abort(), timeoutMs||16000);
+  try{
+    const r=await fetch(GAS_URL+'?api=board&'+authQS(),{method:'GET',signal:ctrl.signal});
+    const t=await r.text();
+    if(!t||t.trim().charAt(0)!=='{') throw new Error('一時応答');
+    return JSON.parse(t);
+  } finally { clearTimeout(to); }
+}
+async function fetchLive(silent){
+  if(!silent) document.getElementById('status').innerHTML='<span class="spin"></span>在庫データを読み込み中…<br><span style="font-size:11px">初回はサーバ起動で20秒ほどかかることがあります</span>';
+  let j=null;
+  for(let a=0;a<3&&!j;a++){ try{ j=await fetchBoardOnce(a===0?25000:12000); }catch(e){ j=null; } }
+  if(!j){ if(!ROWS.length) document.getElementById('status').innerHTML='読み込みに失敗しました。<br><button class="hbtn" style="margin-top:10px" onclick="fetchLive()">再読込</button>'; return; }
+  if(!j.ok){
+    if(j.error==='unauthorized'){ clearCreds(); showGate('メールまたはパスワードが違います'); }
+    return;
+  }
+  if(Object.keys(edits).length){ return; }   // 編集中は裏更新で上書きしない
+  document.getElementById('status').textContent='';
+  UPDATED=j.updated||'';
+  buildRows(j.groups);
+  try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon,sheetUrl:j.sheetUrl,costs:j.costs,reorderSnooze:j.reorderSnooze})); }catch(e){}
+  render();
+}
+document.getElementById('reloadBtn').onclick=()=>{ if(Object.keys(edits).length&&!confirm('未保存の変更があります。破棄して再読込しますか？')) return; edits={}; fetchLive(); };
+
+/* ===== ゲート・起動 ===== */
+function showGate(err){
+  document.getElementById('gate').style.display='flex';
+  document.getElementById('gateErr').textContent=err||'';
+}
+document.getElementById('gateBtn').onclick=()=>{
+  const email=document.getElementById('gateMail').value.trim();
+  const pass=document.getElementById('gatePass').value;
+  if(!email||!pass) return;
+  saveCreds(email,pass);
+  document.getElementById('gate').style.display='none';
+  fetchLive();
+};
+(function boot(){
+  renderChips();
+  const c=creds();
+  if(!(c.email&&c.pass)){ showGate(); return; }
+  try{
+    const cache=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
+    if(cache&&cache.groups){ UPDATED=cache.updated||''; buildRows(cache.groups); render(); }
+  }catch(e){}
+  fetchLive(!!ROWS.length);
+})();
+</script>
+</body>
+</html>
