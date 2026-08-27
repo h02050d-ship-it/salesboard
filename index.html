@@ -1348,7 +1348,19 @@ async function applyEdits(){
       if(keep){ msg+='\n\n変更は保留のまま残しています（原因解消後にもう一度「保存して同期」できます）。'; }
       else edits={};
       if(typeof j.rktodo==='number'){ RKTODO_N=j.rktodo; updateRkTodoBadge(); }
-      alert(msg); fetchLive();
+      alert(msg);
+      // Yahooトークン失効（refresh token expired 等）→ その場で再認証URLへ誘導（約4週間ごとに必要）
+      if(allErrs.some(er=>/refresh失敗|invalid_grant|has expired|expired/i.test(er))){
+        if(confirm('🔑 Yahoo APIの認証が切れています（約4週間ごとに再認証が必要）。\n再認証ページを開きますか？\n\n開いたら Yahoo!ビジネスIDで「同意する」を押すだけです（30秒）。\n完了後にもう一度「保存して同期」してください。')){
+          try{
+            const c2=creds();
+            const ju=await fetch(GAS_URL+'?api=yahooauthurl&email='+encodeURIComponent(c2.email)+'&pass='+encodeURIComponent(c2.pass)).then(r2=>r2.json());
+            if(ju.ok&&ju.url) window.open(ju.url,'_blank');
+            else alert('再認証URLの取得に失敗: '+((ju&&ju.error)||'不明'));
+          }catch(e2){ alert('再認証URLの取得に失敗: '+e2.message); }
+        }
+      }
+      fetchLive();
     } else { alert('エラー: '+(j.error||'不明')); }
   }catch(e){ alert('送信失敗: '+e.message); }
   finally{ btn.disabled=false; btn.textContent='保存して同期'; }

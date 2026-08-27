@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "salesboard",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["-y", "http-server", "-p", "8781", "-c-1", "C:/Users/hayaz/Temp/sales_board"],
+      "port": 8781
+    }
+  ]
+}
