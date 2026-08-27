@@ -551,6 +551,8 @@ function staleShort(d){ if(d===null||d===undefined) return '実績なし'; if(d<
 const BUNDLE={910:20,2000:20,3000:10,4000:8};
 // 在庫モードで併記する「別入数での換算」。910は10枚束・2000(2m)は8枚束で数えたい（2026-07-21 ユーザー指示）
 const SUB_BUNDLE={910:10,2000:8};
+// 2026-08-27 ユーザー指示: 在庫モードの主表示を物理束(910=10枚入・2m=8枚入)に。シート束(20枚入=EC)はサブ表示へ。
+const physB=(sheetB,L)=>Math.round(sheetB*(BUNDLE[L]||20)/SUB_BUNDLE[L]*10)/10;
 const LEN_ORDER=[910,2000,3000,4000], GRADE_ORDER=['丸節','小節','特上小','無節'];
 const WIDTH2GROUP={'120mm幅':'標準','105mm幅':'幅狭','オリジナル':'オリジナル'};
 
@@ -1005,7 +1007,8 @@ function cardHTML(g,mode){
   const head='<h2><span class="q '+(g.quality==='B'?'b':'')+'">'+g.quality+'級</span>'+g.width+' '+g.type+'<span class="stk">在庫計 '+g.stockSum+'束</span></h2>';
   const th='<thead><tr><th class="corner">長さ＼等級</th>'+g.grades.map(G=>'<th>'+G+'</th>').join('')+'</tr></thead>';
   const rows=g.lens.map(L=>{
-    const bd=BUNDLE[L]?(' <small>('+BUNDLE[L]+')</small>'):'';
+    const hdrB=(mode==='stock'&&SUB_BUNDLE[L])?SUB_BUNDLE[L]:BUNDLE[L];   // 在庫モードの行ラベルは物理入数(10/8)、他モードはシート束(20)のまま
+    const bd=hdrB?(' <small>('+hdrB+')</small>'):'';
     const tds=g.grades.map(G=>{
       const c=g.cells[L+'|'+G];
       if(!c) return '<td><div class="cell empty"></div></td>';
@@ -1016,11 +1019,13 @@ function cardHTML(g,mode){
       let cls,main,cutSub='',stockNum=null;   // stockNum=換算サブ表示に使う束数（∞はnull）
       if(mode==='stock'){
         const ci=cutStockInfo(g,L,G);
-        if(ci && !c.infinite){ const total=s+ci.add; cls='bg-'+stockBucket(total); main=total; stockNum=total;   // 合計を主表示（色も合計で判定）
-          cutSub='<span class="uns cutbd" title="実2m在庫'+s+'束＋4m小節の木取り分（4m在庫'+ci.n4+'束×'+ci.factor+'）">実'+s+'＋切'+ci.add+'</span>'; }
+        const disp=(n)=>SUB_BUNDLE[L]?physB(n,L):n;   // 主表示は910/2mだけ物理束(10/8枚入)へ換算。色判定はシート束のまま
+        const unitTx=SUB_BUNDLE[L]?('（'+SUB_BUNDLE[L]+'枚入束）'):'束';
+        if(ci && !c.infinite){ const total=s+ci.add; cls='bg-'+stockBucket(total); main=disp(total); stockNum=total;   // 合計を主表示（色も合計で判定）
+          cutSub='<span class="uns cutbd" title="実2m在庫'+disp(s)+'＋4m小節の木取り分'+disp(ci.add)+unitTx+'（4m在庫'+ci.n4+'束×'+ci.factor+'）">実'+disp(s)+'＋切'+disp(ci.add)+'</span>'; }
         else if(ci && c.infinite){ cls='bg-g'; main=sDisp; stockNum=s+ci.add;   // EC無限在庫セルは∞のまま、内訳＋換算は実質在庫(実+切)で出す
-          cutSub='<span class="uns cutbd" title="EC上は無限在庫。実2m在庫'+s+'束＋4m小節の木取り分（4m在庫'+ci.n4+'束×'+ci.factor+'）＝'+(s+ci.add)+'束">実'+s+'＋切'+ci.add+'</span>'; }
-        else { cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=sDisp; stockNum=c.infinite?null:s; }
+          cutSub='<span class="uns cutbd" title="EC上は無限在庫。実2m在庫'+disp(s)+'＋4m小節の木取り分'+disp(ci.add)+unitTx+'（4m在庫'+ci.n4+'束×'+ci.factor+'）＝'+disp(s+ci.add)+unitTx+'">実'+disp(s)+'＋切'+disp(ci.add)+'</span>'; }
+        else { cls=c.infinite?'bg-g':'bg-'+stockBucket(s); main=c.infinite?sDisp:disp(s); stockNum=c.infinite?null:s; }
       }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
       else if(mode==='order'){ if(reorderExcluded(g)){ cls='bg-u'; main='対象外'; } else { const dl=cellDaysLeftC(cgi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); } }
@@ -1038,11 +1043,11 @@ function cardHTML(g,mode){
       const sub=showStale
         ? '<span class="uns b-'+staleCls+'" title="最終販売からの経過">🕐 '+(c.infinite?'—':staleShort(c.combined))+'</span>'
         : '<span class="stk">在庫 '+sDisp+'</span>';
-      // 別入数での換算在庫をサブ表示（910=10枚束・2000=8枚束）。シート束はどちらも20枚なので 910×2 / 2000×2.5(切捨)
+      // 主表示は物理束(910=10枚入・2m=8枚入)＝倉庫の数え方。EC/シート束(20枚入)はサブ表示（2026-08-27ユーザー指示で主従を反転）
       let bdSub='';
       if(mode==='stock' && SUB_BUNDLE[L] && stockNum!=null){
-        const per=BUNDLE[L]||20, pieces=stockNum*per, n=Math.floor(pieces/SUB_BUNDLE[L]);
-        bdSub='<span class="uns bdsub" title="'+stockNum+'束×'+per+'枚＝'+pieces+'枚 → '+SUB_BUNDLE[L]+'枚入なら '+n+'束">'+SUB_BUNDLE[L]+'枚 '+n+'束</span>';
+        const per=BUNDLE[L]||20, pieces=Math.round(stockNum*per);
+        bdSub='<span class="uns bdsub" title="物理 '+physB(stockNum,L)+'束×'+SUB_BUNDLE[L]+'枚＝'+pieces+'枚 ＝ EC/シートの'+per+'枚入で '+stockNum+'束">EC'+per+'枚 '+stockNum+'束</span>';
       }
       return '<td><div class="cell '+cls+ed+'" data-gi="'+cgi+'" data-k="'+L+'|'+G+'">'+tag+'<span class="age">'+main+'</span>'+(cutSub||sub)+bdSub+'</div></td>';
     }).join('');
@@ -1056,7 +1061,7 @@ function setLegend(mode,LT){
   const L=(items)=>items.map(x=>'<span><i style="background:var(--'+x[0]+')"></i>'+x[1]+'</span>').join('');
   let html;
   if(mode==='order') html=L([['r','〜'+LT+'日(要発注)'],['o','〜'+(LT*2)+'日'],['y','〜'+(LT*4)+'日'],['g','十分/∞'],['u','実績なし']]);
-  else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']])+'<span>　🕐＝最終販売・市場出荷からの経過（色＝滞留度）</span>';
+  else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']])+'<span>　910＝10枚入束・2m＝8枚入束で表記（EC20枚入はサブ・色はEC束数基準）　🕐＝最終販売・市場出荷からの経過</span>';
   else if(mode==='point') html=L([['g','変倍あり(2倍〜)'],['u','1倍(変倍なし)']])+'<span>　—＝楽天SKUなし（楽天=表示/編集可・Yahoo=手動）</span>';
   else html=L([['g','〜2か月'],['y','2か月〜'],['o','半年〜'],['r','1年〜'],['u','不明']])+'<span>　色＝🕐売れてない期間 / 数字＝価格</span>';
   document.getElementById('legend').innerHTML=html;
@@ -1167,7 +1172,7 @@ function openDrawer(gi,key){
       '<div class="edit"><div class="et">📦 在庫</div><div class="pr-lock">♾ 無限在庫（在庫管理の対象外）。モールへは常時 100 を送信します。</div></div>'
     : '<div class="edit"><div class="et">📦 在庫を編集（束）</div>'
     + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="numeric" value="'+s+'"><button onclick="bumpStock(1)">＋</button></div>'
-    + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）</div>'
+    + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）'+(SUB_BUNDLE[c.length]?'　⚠️ 表の主表示は'+SUB_BUNDLE[c.length]+'枚入束・ここは'+BUNDLE[c.length]+'枚入束で入力':'')+'</div>'
     + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div>'
     + ((+c.reserved||0)>0?'<div class="orig" style="color:var(--o-ink);font-weight:700">🔒 加工予定に引当 '+c.reserved+'枚（≈'+(Math.round(c.reserved/(BUNDLE[c.length]||1)*10)/10)+'束）— モールへは在庫からこの分を引いて送信</div>':'')
     + (cutRuleFor(g,c.length,c.grade)?'<div class="orig" style="color:var(--o-ink);font-weight:700">※表示在庫には4m小節の木取り分(×2)を含む／ここで編集するのは実2m在庫</div>':'')

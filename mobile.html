@@ -219,6 +219,34 @@ let edits={};       // key -> {pieces}
 let FILTER='all';   // all | A | B
 let UPDATED='';
 
+/* ===== 編集下書きの永続化 =====
+   スマホはバックグラウンドでタブが破棄→再読込されるとメモリ上の「保存待ち」が全部消える
+   （＝編集したのに元に戻ったように見える事故の原因）。下書きはlocalStorageに常時退避する。 */
+const EDITS_KEY='hayazai_mobile_edits';
+const EDITS_TTL=24*3600*1000;   // 丸1日で下書きは破棄（古い棚卸下書きの誤保存防止）
+function persistEdits(){
+  try{
+    if(Object.keys(edits).length) localStorage.setItem(EDITS_KEY, JSON.stringify({ts:Date.now(),edits:edits}));
+    else localStorage.removeItem(EDITS_KEY);
+  }catch(e){}
+}
+function restoreEdits(){
+  try{
+    const v=JSON.parse(localStorage.getItem(EDITS_KEY)||'null');
+    if(v&&v.edits&&(Date.now()-(v.ts||0))<EDITS_TTL) edits=v.edits;
+    else localStorage.removeItem(EDITS_KEY);
+  }catch(e){}
+}
+// ROWS確定後に下書きを整合: 消えた規格・すでにサーバ値と同じ物は下書きから外す
+function reconcileEdits(){
+  let ch=false;
+  Object.keys(edits).forEach(k=>{
+    const r=ROWS.find(x=>x.key===k);
+    if(!r||r.infinite||edits[k].pieces===piecesOf(r)){ delete edits[k]; ch=true; }
+  });
+  if(ch) persistEdits();
+}
+
 /* ===== 換算 ===== */
 const piecesOf=(r)=> (Number(r.stock)||0)*(EC_BUNDLE[r.length]||20);
 function physDisp(r,pieces){
@@ -352,11 +380,12 @@ document.getElementById('shOk').onclick=()=>{
   const p=curPieces();
   if(p===piecesOf(CUR)) delete edits[CUR.key];
   else edits[CUR.key]={pieces:p};
+  persistEdits();
   closeSheet(); render();
 };
 
 /* ===== 保存 ===== */
-document.getElementById('undoBtn').onclick=()=>{ edits={}; render(); };
+document.getElementById('undoBtn').onclick=()=>{ edits={}; persistEdits(); render(); };
 document.getElementById('saveBtn').onclick=async ()=>{
   const keys=Object.keys(edits); if(!keys.length) return;
   const c=creds();
@@ -367,28 +396,30 @@ document.getElementById('saveBtn').onclick=async ()=>{
   const btn=document.getElementById('saveBtn');
   btn.disabled=true; btn.textContent='保存中…';
   try{
-    const res=await fetch(GAS_URL,{method:'POST',body:JSON.stringify({action:'board',email:c.email,pass:c.pass,updates:updates})});
+    // keepalive: 保存直後に画面ロック/アプリ切替してもPOSTを最後まで送り切る
+    const res=await fetch(GAS_URL,{method:'POST',keepalive:true,body:JSON.stringify({action:'board',email:c.email,pass:c.pass,updates:updates})});
     const j=await res.json();
     if(!j.ok) throw new Error(j.error||'保存失敗');
-    if(j.errors&&j.errors.length) toast('⚠ 一部エラー: '+j.errors[0]);
+    if(j.errors&&j.errors.length) toast('⚠ 一部エラー('+j.errors.length+'件): '+j.errors[0],10000);
     else toast('✅ '+j.applied+'件 保存＆モール反映しました');
     keys.forEach(k=>{ const r=ROWS.find(x=>x.key===k); if(r) r.stock=Math.round(edits[k].pieces/(EC_BUNDLE[r.length]||20)*100)/100; });
     edits={};
+    persistEdits();
     render();
     fetchLive(true);
   }catch(e){
-    toast('❌ 保存に失敗: '+e.message+'（電波の良い所で再試行）');
+    toast('❌ 保存に失敗: '+e.message+'（変更は消えていません。電波の良い所で再度保存してください）',10000);
   }finally{
     btn.disabled=false; render();
   }
 };
 
 let toastTimer=null;
-function toast(msg){
+function toast(msg,dur){
   const t=document.getElementById('toast');
   t.textContent=msg; t.classList.add('show');
   if(toastTimer) clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove('show'),3500);
+  toastTimer=setTimeout(()=>t.classList.remove('show'),dur||3500);
 }
 
 /* ===== 取得 ===== */
@@ -415,10 +446,11 @@ async function fetchLive(silent){
   document.getElementById('status').textContent='';
   UPDATED=j.updated||'';
   buildRows(j.groups);
+  reconcileEdits();
   try{ localStorage.setItem(CACHE_KEY, JSON.stringify({groups:j.groups,yahooBase:j.yahooBase,rakutenBase:j.rakutenBase,countsheet:j.countsheet,updated:j.updated,horizon:j.horizon,sheetUrl:j.sheetUrl,costs:j.costs,reorderSnooze:j.reorderSnooze})); }catch(e){}
   render();
 }
-document.getElementById('reloadBtn').onclick=()=>{ if(Object.keys(edits).length&&!confirm('未保存の変更があります。破棄して再読込しますか？')) return; edits={}; fetchLive(); };
+document.getElementById('reloadBtn').onclick=()=>{ if(Object.keys(edits).length&&!confirm('未保存の変更があります。破棄して再読込しますか？')) return; edits={}; persistEdits(); fetchLive(); };
 
 /* ===== ゲート・起動 ===== */
 function showGate(err){
@@ -435,11 +467,12 @@ document.getElementById('gateBtn').onclick=()=>{
 };
 (function boot(){
   renderChips();
+  restoreEdits();   // タブ再読込で消えた「保存待ち」を復元
   const c=creds();
   if(!(c.email&&c.pass)){ showGate(); return; }
   try{
     const cache=JSON.parse(localStorage.getItem(CACHE_KEY)||'null');
-    if(cache&&cache.groups){ UPDATED=cache.updated||''; buildRows(cache.groups); render(); }
+    if(cache&&cache.groups){ UPDATED=cache.updated||''; buildRows(cache.groups); reconcileEdits(); render(); }
   }catch(e){}
   fetchLive(!!ROWS.length);
 })();
