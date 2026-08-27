@@ -1191,7 +1191,7 @@ function openDrawer(gi,key){
   // 販売履歴（ボードに同梱済み＝即表示）。「○枚入 × ○セット」表記。
   const fmtSale=(x)=>{ const ic=x.platform==='ichiba', kk=x.platform==='kakou';
     const cust=x.customer?String(x.customer).replace(/[<>&"]/g,''):'';
-    const amt=kk?((x.pieces?x.pieces+'枚':'')+(cust?'・'+cust:'')+'（出荷前・仮）')
+    const amt=kk?((x.bundles?x.bundles+'束':(x.pieces?x.pieces+'枚':''))+(cust?'・'+cust:'')+'（出荷前・仮）')
       :ic?(x.sets+'束'+(cust?'・'+cust:''))
       :(x.bundle>0?(x.bundle+'枚入 × '+x.sets+'セット'):(x.sets+'セット'+(x.pieces?'（'+x.pieces+'枚）':'')));
     return '<div class="hist-row"><span class="hist-d">'+x.date+'</span><span class="dot '+(x.platform==='yahoo'?'yh':(ic?'ic':(kk?'kk':'rk')))+'"></span><span class="hist-p">'+(x.platform==='yahoo'?'Yahoo':(ic?'市場':(kk?'受注仮':(x.platform==='rakuten'?'楽天':'-'))))+'</span><span class="hist-q">'+amt+'</span></div>'; };
