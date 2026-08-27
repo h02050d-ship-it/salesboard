@@ -551,8 +551,13 @@ function staleShort(d){ if(d===null||d===undefined) return '実績なし'; if(d<
 const BUNDLE={910:20,2000:20,3000:10,4000:8};
 // 在庫モードで併記する「別入数での換算」。910は10枚束・2000(2m)は8枚束で数えたい（2026-07-21 ユーザー指示）
 const SUB_BUNDLE={910:10,2000:8};
-// 2026-08-27 ユーザー指示: 在庫モードの主表示を物理束(910=10枚入・2m=8枚入)に。シート束(20枚入=EC)はサブ表示へ。
+// 2026-08-27 ユーザー指示: 在庫の表示・編集は全面的に物理束(910=10枚入・2m=8枚入)へ統一。シート束(20枚入=EC)はサブ表示のみ。
+// 内部状態(edits/c.stock/リスク計算)はシート束のまま＝表示と入出力の境界だけで換算する。
 const physB=(sheetB,L)=>Math.round(sheetB*(BUNDLE[L]||20)/SUB_BUNDLE[L]*10)/10;
+const toPhys=(n,L)=>SUB_BUNDLE[L]?physB(n,L):n;                 // シート束→表示束（910/2mのみ換算）
+const toSheet=(n,L)=>SUB_BUNDLE[L]?Math.round(n*SUB_BUNDLE[L]/(BUNDLE[L]||20)*100)/100:Math.round(n);   // 表示束→シート束(小数2桁)
+const physUnit=(L)=>SUB_BUNDLE[L]||BUNDLE[L]||20;               // 表示束の1束あたり枚数
+const physFromTag=(n,tag)=>{ const m=String(tag||'').match(/\b(910|2000|3000|4000)\b/); return m?toPhys(n,+m[1]):n; };   // 規格名から長さを拾って換算
 const LEN_ORDER=[910,2000,3000,4000], GRADE_ORDER=['丸節','小節','特上小','無節'];
 const WIDTH2GROUP={'120mm幅':'標準','105mm幅':'幅狭','オリジナル':'オリジナル'};
 
@@ -829,7 +834,7 @@ function buildRiskRows(){
     if(isReorderSnoozed(r.g,r.c)) return null;   // 見送り中は発注帯・通知から除外（在庫表には表示）
     const dl=Math.floor(Math.max(0,r.stock*(BUNDLE[r.length]||1)-(+r.c.reserved||0))/s.daily);   // 引当分は販売不可
     const shared=s.list.length>1;
-    return {gi:r.gi, key:r.key, dl:dl, stock:r.stock,
+    return {gi:r.gi, key:r.key, dl:dl, stock:r.stock, length:r.length,
       label: shared ? (r.g.quality+'級 '+r.length+'/'+r.grade+'（原板共通）')
                     : (r.name.replace(/\s*120mm幅/,'')+' '+r.length+'/'+r.grade)};
   }).filter(Boolean);
@@ -965,8 +970,9 @@ function render(){
   groups.forEach(g=>Object.values(g.cells).forEach(c=>{
     sku++;s30+=(+c.sold30||0);if(c.combined===null||c.combined>=60)stale++;
     const cd=c.coord||'';
-    if(!cd||!seenCoord[cd]){ if(cd)seenCoord[cd]=1; stk+=(+curStock(g.gi,c)||0); }
+    if(!cd||!seenCoord[cd]){ if(cd)seenCoord[cd]=1; stk+=toPhys(+curStock(g.gi,c)||0,c.length); }   // KPIも物理束
   }));
+  stk=Math.round(stk);
   const order=buildRiskRows().filter(r=>r.dl<=LT).length;   // 帯・メールと同じ計算（原板共通は1件）
   document.getElementById('kSku').textContent=sku;
   document.getElementById('kStale').textContent=stale;
@@ -998,13 +1004,15 @@ function render(){
 function sectionBanner(q,groups,title,clsOverride){
   let cards=0,stk=0;
   const seen={};   // 原板共通(coord共有)は在庫計に1回だけ
-  groups.forEach(g=>Object.values(g.cells).forEach(c=>{cards++;const cd=c.coord||'';if(!cd||!seen[cd]){if(cd)seen[cd]=1;stk+=(+curStock(g.gi,c)||0);}}));
+  groups.forEach(g=>Object.values(g.cells).forEach(c=>{cards++;const cd=c.coord||'';if(!cd||!seen[cd]){if(cd)seen[cd]=1;stk+=toPhys(+curStock(g.gi,c)||0,c.length);}}));   // 在庫計も物理束
+  stk=Math.round(stk);
   return '<div class="section sec-'+(clsOverride||q.toLowerCase())+'">'
     + '<div class="sec-l"><span class="sec-q">'+q+'</span><div class="sec-t">'+(title||q+'級品')+'</div></div>'
     + '<div class="sec-kpi">'+groups.length+'グループ ・ '+cards+'規格 ・ 在庫計 '+stk.toLocaleString()+'束</div></div>';
 }
 function cardHTML(g,mode){
-  const head='<h2><span class="q '+(g.quality==='B'?'b':'')+'">'+g.quality+'級</span>'+g.width+' '+g.type+'<span class="stk">在庫計 '+g.stockSum+'束</span></h2>';
+  const physSum=Math.round(Object.values(g.cells).reduce((a,c)=>a+toPhys(+c.stock||0,c.length),0));   // カード在庫計も物理束
+  const head='<h2><span class="q '+(g.quality==='B'?'b':'')+'">'+g.quality+'級</span>'+g.width+' '+g.type+'<span class="stk">在庫計 '+physSum+'束</span></h2>';
   const th='<thead><tr><th class="corner">長さ＼等級</th>'+g.grades.map(G=>'<th>'+G+'</th>').join('')+'</tr></thead>';
   const rows=g.lens.map(L=>{
     const hdrB=(mode==='stock'&&SUB_BUNDLE[L])?SUB_BUNDLE[L]:BUNDLE[L];   // 在庫モードの行ラベルは物理入数(10/8)、他モードはシート束(20)のまま
@@ -1042,7 +1050,7 @@ function cardHTML(g,mode){
       const staleCls=(c.combined!=null)?bucket(c.combined):'u';
       const sub=showStale
         ? '<span class="uns b-'+staleCls+'" title="最終販売からの経過">🕐 '+(c.infinite?'—':staleShort(c.combined))+'</span>'
-        : '<span class="stk">在庫 '+sDisp+'</span>';
+        : '<span class="stk">在庫 '+(c.infinite?'∞':toPhys(s,L))+'</span>';   // 発注・ポイントモードの下段在庫も物理束
       // 主表示は物理束(910=10枚入・2m=8枚入)＝倉庫の数え方。EC/シート束(20枚入)はサブ表示（2026-08-27ユーザー指示で主従を反転）
       let bdSub='';
       if(mode==='stock' && SUB_BUNDLE[L] && stockNum!=null){
@@ -1086,7 +1094,7 @@ function renderReorder(LT){
     return '<button class="rchip '+b+'" data-gi="'+r.gi+'" data-k="'+r.key+'">'
       +'<span class="d">'+(r.dl<=0?'在庫切れ':'あと'+r.dl+'日')+'</span>'
       +'<span>'+r.label+'</span>'
-      +'<span class="sp">在庫'+r.stock+'束</span></button>';
+      +'<span class="sp">在庫'+toPhys(r.stock,r.length)+'束</span></button>';
   }).join('');
   const more=risk.length>8?'<button class="more" id="reMore">'+(reorderExpanded?'閉じる':'＋他'+(risk.length-8)+'件を表示')+'</button>':'';
   box.classList.remove('hidden');
@@ -1116,9 +1124,9 @@ function grossBlock(g,c,py){
   const cls=rate<15?'crit':(rate<30?'warn':'');
   return head
     +'<div class="row">'
-    +'<div><div class="n">'+yen(costB)+'</div><div class="l">原価/束（'+yen(piece)+'/枚）</div></div>'
-    +'<div><div class="n">'+yen(py)+'</div><div class="l">売価(Yahoo)/束</div></div>'
-    +'<div class="'+cls+'"><div class="n" style="'+(rate<15?'color:var(--r-ink)':(rate<30?'color:var(--o-ink)':'color:#1a7f37'))+'">'+yen(gross)+'<small style="font-size:10px"> ('+rate+'%)</small></div><div class="l">粗利/束</div></div>'
+    +'<div><div class="n">'+yen(costB)+'</div><div class="l">原価/'+(SUB_BUNDLE[c.length]?('EC'+bundle+'枚'):'束')+'（'+yen(piece)+'/枚）</div></div>'
+    +'<div><div class="n">'+yen(py)+'</div><div class="l">売価(Yahoo)/'+(SUB_BUNDLE[c.length]?('EC'+bundle+'枚'):'束')+'</div></div>'
+    +'<div class="'+cls+'"><div class="n" style="'+(rate<15?'color:var(--r-ink)':(rate<30?'color:var(--o-ink)':'color:#1a7f37'))+'">'+yen(gross)+'<small style="font-size:10px"> ('+rate+'%)</small></div><div class="l">粗利/'+(SUB_BUNDLE[c.length]?('EC'+bundle+'枚'):'束')+'</div></div>'
     +'</div>'
     +'<div class="note">原価＝原板㎥単価×材積(120×18×'+c.length+') '+(cm.add?('＋加工費'+yen(cm.add)+'/枚'):'')+'。単価変更はスプシ「原価設定」シート。</div></div>';
 }
@@ -1142,7 +1150,7 @@ function openDrawer(gi,key){
   const g=DATA.find(x=>x.gi===gi); const c=g.cells[key];
   cur={gi,g,c};
   document.getElementById('dGrp').textContent=g.name;
-  document.getElementById('dTtl').textContent=c.length+'mm（'+BUNDLE[c.length]+'枚束） ／ '+c.grade;
+  document.getElementById('dTtl').textContent=c.length+'mm（束='+physUnit(c.length)+'枚入'+(SUB_BUNDLE[c.length]?('・EC='+BUNDLE[c.length]+'枚入'):'')+'） ／ '+c.grade;
   const s=curStock(gi,c), py=curPriceY(gi,c), pr=curPriceR(gi,c), bk=bucket(c.combined);
   const mallHTML=(label,cls,m,plat)=>{
     if(!m) return '<div class="mall none"><div class="ml"><span class="dot '+cls+'"></span>'+label+'</div><div class="md"><div class="s">出品なし</div></div></div>';
@@ -1163,18 +1171,21 @@ function openDrawer(gi,key){
   const yBase=c.yahoo?(+c.yahoo.price||0):0, rBase=c.rakuten?(+c.rakuten.price||0):0;
   const unifyANote=(g.quality==='A'&&g.group==='標準'&&c.yahoo)
     ? '<div class="note-tip" style="margin-top:8px">🔗 A級標準は原板共通のため、Yahoo価格は<b>フローリング15/12mm・羽目板の同じ長さ/等級にまとめて反映</b>されます（スノコは楽天専売・体系が別なので対象外）。</div>' : '';
-  const priceBlock =
-      (c.yahoo ? priceOne('Yahoo!', yBase, py, 'prInY', 'bumpPriceY', 'yh')+unifyANote : '')
+  const priceUnitNote=SUB_BUNDLE[c.length]?'<div class="note-tip" style="margin-top:8px">💴 価格は<b>EC販売セット（'+BUNDLE[c.length]+'枚入）あたり</b>の金額です（在庫の束＝'+SUB_BUNDLE[c.length]+'枚入とは別単位）。</div>':'';
+  const priceBlock = priceUnitNote
+    + (c.yahoo ? priceOne('Yahoo!', yBase, py, 'prInY', 'bumpPriceY', 'yh')+unifyANote : '')
     + (c.rakuten ? priceOne('楽天', rBase, pr, 'prInR', 'bumpPriceR', 'rk') : '')
     + (c.rakuten ? '<div class="note-tip" style="margin-top:8px">⚠️ 楽天はYahooと<b>入数・送料込み体系が異なる場合</b>があります（910は40枚入）。表示の現在価格を基準にそのまま入力してください。</div>' : '')
     + ((!c.yahoo && !c.rakuten) ? '<div class="edit"><div class="pr-lock">価格編集の対象SKUがありません。</div></div>' : '');
+  // 在庫編集は一覧と同じ物理束(910=10枚入・2m=8枚入)で入出力（内部はシート束のまま・stageCellで換算）
+  const pbU=physUnit(c.length), sP=toPhys(s,c.length), baseP=toPhys(c.stock,c.length);
   const stockBlock = c.infinite ?
       '<div class="edit"><div class="et">📦 在庫</div><div class="pr-lock">♾ 無限在庫（在庫管理の対象外）。モールへは常時 100 を送信します。</div></div>'
-    : '<div class="edit"><div class="et">📦 在庫を編集（束）</div>'
-    + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="numeric" value="'+s+'"><button onclick="bumpStock(1)">＋</button></div>'
-    + '<div class="unit">束（'+BUNDLE[c.length]+'枚／束）'+(SUB_BUNDLE[c.length]?'　⚠️ 表の主表示は'+SUB_BUNDLE[c.length]+'枚入束・ここは'+BUNDLE[c.length]+'枚入束で入力':'')+'</div>'
-    + '<div class="orig">現在の登録: '+c.stock+'束'+(s!==c.stock?' → <b style="color:var(--accent)">'+s+'束</b>':'')+'</div>'
-    + ((+c.reserved||0)>0?'<div class="orig" style="color:var(--o-ink);font-weight:700">🔒 加工予定に引当 '+c.reserved+'枚（≈'+(Math.round(c.reserved/(BUNDLE[c.length]||1)*10)/10)+'束）— モールへは在庫からこの分を引いて送信</div>':'')
+    : '<div class="edit"><div class="et">📦 在庫を編集（束・'+pbU+'枚入）</div>'
+    + '<div class="stepper"><button onclick="bumpStock(-1)">−</button><input id="stkIn" type="number" inputmode="decimal" step="any" value="'+sP+'"><button onclick="bumpStock(1)">＋</button></div>'
+    + '<div class="unit">束（'+pbU+'枚／束）＝一覧と同じ入数'+(SUB_BUNDLE[c.length]?'。EC販売の'+BUNDLE[c.length]+'枚入へは自動換算':'')+'</div>'
+    + '<div class="orig">現在の登録: '+baseP+'束'+(SUB_BUNDLE[c.length]?('（EC'+BUNDLE[c.length]+'枚入 '+c.stock+'束）'):'')+(sP!==baseP?' → <b style="color:var(--accent)">'+sP+'束</b>':'')+'</div>'
+    + ((+c.reserved||0)>0?'<div class="orig" style="color:var(--o-ink);font-weight:700">🔒 加工予定に引当 '+c.reserved+'枚（≈'+(Math.round(c.reserved/pbU*10)/10)+'束）— モールへは在庫からこの分を引いて送信</div>':'')
     + (cutRuleFor(g,c.length,c.grade)?'<div class="orig" style="color:var(--o-ink);font-weight:700">※表示在庫には4m小節の木取り分(×2)を含む／ここで編集するのは実2m在庫</div>':'')
     + '</div>';
   // 販売履歴（ボードに同梱済み＝即表示）。「○枚入 × ○セット」表記。
@@ -1211,7 +1222,7 @@ function openDrawer(gi,key){
    + '<div id="ptDrawSlot"></div>'
    + '<div id="wsDrawSlot"></div>'
    + '<div class="save-row"><button class="btn ghost" onclick="resetCell()">戻す</button><button class="btn primary" onclick="stageCell()">変更を保留に追加</button></div>'
-   + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫は束換算 910/2000=20・3000=10・4000=8枚）。</div>';
+   + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫の束＝910:10枚・2m:8枚・3m:10枚・4m:8枚入。EC送信時は自動換算）。</div>';
   document.getElementById('scrim').classList.add('show');
   document.getElementById('drawer').classList.add('show');
   // 楽天価格はスプシD列が更新されない＝古いので、開いた瞬間に実価格をライブ取得して差し替える
@@ -1282,7 +1293,7 @@ function bumpStock(d){ const i=document.getElementById('stkIn'); if(i) i.value=M
 function bumpPriceY(d){ const i=document.getElementById('prInY'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
 function bumpPriceR(d){ const i=document.getElementById('prInR'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
 function resetCell(){
-  const st=document.getElementById('stkIn'); if(st) st.value=cur.c.stock;
+  const st=document.getElementById('stkIn'); if(st) st.value=toPhys(cur.c.stock,cur.c.length);
   const py=document.getElementById('prInY'); if(py) py.value=cur.c.yahoo?(+cur.c.yahoo.price||0):0;
   const pr=document.getElementById('prInR'); if(pr) pr.value=cur.c.rakuten?(+cur.c.rakuten.price||0):0;
   const pt=document.getElementById('ptInR'); if(pt) pt.value=(cur.c.rakutenPoint!=null?cur.c.rakutenPoint:1);
@@ -1292,7 +1303,7 @@ function stageCell(){
   const stEl=document.getElementById('stkIn');   // 無限在庫セルには入力欄が無い
   const pyEl=document.getElementById('prInY'), prEl=document.getElementById('prInR'), ptEl=document.getElementById('ptInR');
   const rec={};
-  if(stEl){ const sv=Math.max(0,+stEl.value||0); if(sv!==cur.c.stock) rec.stock=sv; }
+  if(stEl){ const sv=toSheet(Math.max(0,+stEl.value||0),cur.c.length); if(sv!==cur.c.stock) rec.stock=sv; }   // 入力は物理束→シート束へ換算して保留
   if(pyEl){ const base=cur.c.yahoo?(+cur.c.yahoo.price||0):0; const v=Math.max(0,+pyEl.value||0); if(v!==base) rec.priceY=v; }
   if(prEl){ const base=cur.c.rakuten?(+cur.c.rakuten.price||0):0; const v=Math.max(0,+prEl.value||0); if(v!==base) rec.priceR=v; }
   if(ptEl){ const base=(cur.c.rakutenPoint!=null)?cur.c.rakutenPoint:1; const v=Math.max(1,Math.min(20,+ptEl.value||1)); if(v!==base) rec.pointR=v; }
@@ -1317,7 +1328,8 @@ async function applyEdits(){
     const [gip,L,G]=k.split('|'); const g=DATA.find(x=>x.gi===+gip);
     const rec=edits[k];
     const u={quality:g.quality, group:g.group, typeBase:g.type, length:+L, grade:G};
-    if('stock'in rec) u.stock=rec.stock;
+    // シート束が小数(910/2mの物理束換算)になり得る→GASのstockは整数丸めなので、実枚数(stockPieces)で送って小数2桁保存させる
+    if('stock'in rec){ if(SUB_BUNDLE[+L]) u.stockPieces=Math.round(rec.stock*(BUNDLE[+L]||20)); else u.stock=rec.stock; }
     if('priceY'in rec) u.priceYahoo=rec.priceY;
     if('priceR'in rec) u.priceRakuten=rec.priceR;
     if('pointR'in rec) u.pointRakuten=rec.pointR;
@@ -1398,14 +1410,14 @@ function renderRank(){
     note.textContent='在庫があるのに直近'+per+'日まったく売れていない規格（滞留＝資金が寝ている）。在庫が多い順。値下げ・セット化・出品見直しの候補。';
   }
   if(!rows.length){ body.innerHTML='<div class="rank-empty">該当する規格はありません 🎉</div>'; return; }
-  const maxV=rankState.metric==='hot'?(rows[0][sel]||1):(rows[0].stock||1);
+  const maxV=rankState.metric==='hot'?(rows[0][sel]||1):(Math.max.apply(null,rows.map(r=>toPhys(r.stock,r.length)))||1);
   body.innerHTML=rows.map((r,i)=>{
-    const val=rankState.metric==='hot'?r[sel]:r.stock;
+    const val=rankState.metric==='hot'?r[sel]:toPhys(r.stock,r.length);   // 束は物理束(910=10入/2m=8入)で表示
     const unit=rankState.metric==='hot'?'枚':'束';
     const sub=rankState.metric==='hot'
-      ? '在庫'+r.stock+'束 ・ '+(r.dl===Infinity?'在庫∞':(r.dl===null?'残日数—':'あと'+r.dl+'日'))
+      ? '在庫'+toPhys(r.stock,r.length)+'束 ・ '+(r.dl===Infinity?'在庫∞':(r.dl===null?'残日数—':'あと'+r.dl+'日'))
       : '最終販売 '+(r.c.combined===null?'記録なし':ageShort(r.c.combined)+'前')+' ・ 直近'+per+'日 0枚';
-    const w=Math.max(3,Math.round(val/maxV*100));
+    const w=Math.min(100,Math.max(3,Math.round(val/maxV*100)));
     return '<div class="rrow" data-gi="'+r.gi+'" data-k="'+r.key+'"><div class="rn">'+(i+1)+'</div>'
       +'<div class="ri"><div class="t">'+r.name+'　'+r.length+'/'+r.grade+'</div><div class="s">'+sub+'</div></div>'
       +'<div class="rbar"><i style="width:'+w+'%"></i></div>'
@@ -1477,10 +1489,11 @@ function schgBlock(g,c){
   const ago=p.days<=0?'今日':(p.days+'日前'), dn=p.diff<0;
   const dcol=dn?'#c0392b':(p.diff>0?'#1a7f37':'var(--ink)');
   const coord=(c.coord||'').replace(/"/g,'');
-  return '<div class="hist"><div class="et">📦 在庫変更履歴</div>'
+  const L=c.length, po=toPhys(p.old,L), pn=toPhys(p.new,L), pd=Math.round((pn-po)*10)/10;   // 表示は物理束
+  return '<div class="hist"><div class="et">📦 在庫変更履歴（'+physUnit(L)+'枚入束）</div>'
     +'<div class="pchg-latest">'
     +'<div class="pchg-big"><b>'+ago+'</b>に 在庫変更</div>'
-    +'<div class="pchg-sub">'+p.old+'束 → <b>'+p.new+'束</b> <span style="color:'+dcol+';font-weight:800">('+(p.diff>0?'+':'')+p.diff+'束)</span></div>'
+    +'<div class="pchg-sub">'+po+'束 → <b>'+pn+'束</b> <span style="color:'+dcol+';font-weight:800">('+(pd>0?'+':'')+pd+'束)</span></div>'
     +'<div class="pchg-sub2">'+p.date+' 変更'+((c.schg.count>1)?(' ・ 累計 '+c.schg.count+' 回'):'')+'</div>'
     +'</div>'
     +(coord?'<button class="btn ghost" style="margin-top:8px;width:100%" data-sc="'+coord+'" onclick="showStockFull(this)">この在庫の全履歴を見る</button><div class="pchg-full" style="margin-top:8px"></div>':'')
@@ -1508,10 +1521,11 @@ async function showStockFull(btn){
   const rows=log.filter(x=>x.coord===coord);
   box.dataset.open='1'; btn.textContent='全履歴を閉じる';
   if(!rows.length){ box.innerHTML='<div class="hist-empty">記録された変更はこの1件のみ（またはログ範囲外）です。</div>'; return; }
+  const HL=(cur&&cur.c)?cur.c.length:0;   // ドロワー内から開く＝対象セルの長さで物理束へ換算
   box.innerHTML=rows.map(x=>{
-    const dn=x.diff<0;
+    const dn=x.diff<0, xo=toPhys(x.old,HL), xn=toPhys(x.new,HL), xd=Math.round((xn-xo)*10)/10;
     return '<div class="hist-row"><span class="hist-d" style="width:auto;white-space:nowrap;font-size:11px">'+x.date+'</span>'
-    +'<span class="hist-q">'+x.old+'束 → <b>'+x.new+'束</b> <span style="color:'+(dn?'#c0392b':(x.diff>0?'#1a7f37':'var(--sub)'))+';font-weight:800">('+(x.diff>0?'+':'')+x.diff+')</span></span>'
+    +'<span class="hist-q">'+xo+'束 → <b>'+xn+'束</b> <span style="color:'+(dn?'#c0392b':(x.diff>0?'#1a7f37':'var(--sub)'))+';font-weight:800">('+(xd>0?'+':'')+xd+')</span></span>'
     +'<span class="hist-p" style="margin-left:auto;color:var(--sub)">'+x.days+'日前</span></div>';
   }).join('');
 }
@@ -1582,7 +1596,7 @@ function renderPchg(){
     const ago=p.days<=0?'今日':(p.days+'日前');
     const sold=(+r.c.sold30||0), soldCls=sold>0?'':'style="color:var(--r-ink,#c0392b);font-weight:800"';
     const soldTxt=sold>0?(sold+'枚 売れた'):'0枚（動きなし）';
-    const infoStk=r.infinite?'在庫∞':(r.stock+'束');
+    const infoStk=r.infinite?'在庫∞':(toPhys(r.stock,r.length)+'束');
     const fx=PFX?PFX[cellPchgKey(r.g,r.c)]:null;
     let head, detail;
     if(!PFX){ head=''; detail='<span class="spin sm"></span>効果を計算中…'; }
@@ -1919,7 +1933,7 @@ function renderRkhid(at){
     return '<div class="rrow" style="cursor:default">'
       +'<div class="ri"><div class="t">'+t.tag+'　<span style="color:var(--sub);font-family:ui-monospace,monospace;font-size:10px">'+t.code+'</span></div>'
       +'<div class="s">📦 倉庫指定（非表示）のまま</div></div>'
-      +'<div class="rv" style="min-width:78px">'+t.stock+'束<small>在庫あり</small></div>'
+      +'<div class="rv" style="min-width:78px">'+physFromTag(t.stock,t.tag)+'束<small>在庫あり</small></div>'
       +'<a class="tbtn" target="_blank" rel="noopener" href="'+edit+'" style="text-decoration:none" title="RMSの商品編集で倉庫指定をOFFに">RMS編集↗</a>'
       +(shop?'<a class="tbtn" target="_blank" rel="noopener" href="'+shop+'" style="text-decoration:none">商品↗</a>':'')
       +'</div>';
@@ -2006,7 +2020,7 @@ function printMismatch(){
   if(!rows.length){ alert('「Yahoo出品あり・楽天出品なし」の規格はありません 🎉'); return; }
   rows.sort((a,b)=> a.name.localeCompare(b.name,'ja') || a.length-b.length);
   const now=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const tr=rows.map(r=>'<tr><td>'+r.name+'</td><td class="c">'+r.length+'</td><td class="c">'+r.grade+'</td><td class="c">'+r.stock+'</td><td class="mono">'+r.ycode+'</td><td class="chk">□ 掲載済　□ 未掲載</td></tr>').join('');
+  const tr=rows.map(r=>'<tr><td>'+r.name+'</td><td class="c">'+r.length+'</td><td class="c">'+r.grade+'</td><td class="c">'+toPhys(r.stock,r.length)+'</td><td class="mono">'+r.ycode+'</td><td class="chk">□ 掲載済　□ 未掲載</td></tr>').join('');
   const html='<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>楽天 未掲載チェック</title><style>'
     +'@page{size:A4 portrait;margin:12mm}body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",sans-serif;color:#000;margin:0;padding:6px}'
     +'h1{font-size:17px;margin:0 0 2px}.sub{font-size:11px;color:#444;margin:0 0 12px}'
@@ -2015,7 +2029,7 @@ function printMismatch(){
     +'.note{font-size:10px;color:#555;margin-top:10px;line-height:1.6}.noprint{text-align:center;margin-top:16px}@media print{.noprint{display:none}}'
     +'</style></head><body>'
     +'<h1>楽天 未掲載チェック一覧</h1><p class="sub">Yahoo出品あり・楽天出品なし の規格（'+rows.length+'件）／印字 '+now+'</p>'
-    +'<table><thead><tr><th>規格</th><th>長さ</th><th>等級</th><th>在庫(束)</th><th>Yahooコード</th><th>楽天</th></tr></thead><tbody>'+tr+'</tbody></table>'
+    +'<table><thead><tr><th>規格</th><th>長さ</th><th>等級</th><th>在庫(束・910=10枚/2m=8枚入)</th><th>Yahooコード</th><th>楽天</th></tr></thead><tbody>'+tr+'</tbody></table>'
     +'<p class="note">※「楽天出品なし」は<b>商品マッピングに該当楽天SKUが無い</b>規格です。実際は楽天に掲載済でもマッピング未取得だと出ることがあります（要確認）。掲載済なら商品取得を更新すると解消します。</p>'
     +'<div class="noprint"><button onclick="window.print()" style="padding:10px 26px;font-size:14px;font-weight:bold;cursor:pointer;border-radius:8px;border:1px solid #333;background:#fff">🖨 印刷する</button></div>'
     +'</body></html>';
@@ -2044,7 +2058,7 @@ function printCountSheet(){
 }
 function buildCountHTML(blocks){
   const now=new Date().toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const lenLbl=(L)=>BUNDLE[L]?(L+'('+BUNDLE[L]+')'):L;
+  const lenLbl=(L)=>(SUB_BUNDLE[L]||BUNDLE[L])?(L+'('+(SUB_BUNDLE[L]||BUNDLE[L])+')'):L;   // 物理束の入数(910=10/2m=8)で記入させる
   let body='';
   blocks.forEach(b=>{
     const grades=b.grades||[], lens=b.lengths||[];
@@ -2068,11 +2082,11 @@ function buildCountHTML(blocks){
     +'</style></head><body>'
     +'<div class="hd"><h1>在庫チェック表（棚卸し）</h1><div class="meta"><span>実施日：</span><span>担当：</span></div></div>'
     +'<div class="blocks">'+body+'</div>'
-    +'<div class="note">単位＝束（長さ括弧内は1束あたり枚数）。空欄に実数を記入。印字 '+now+'</div>'
+    +'<div class="note">単位＝束（長さ括弧内は1束あたり枚数。910=10枚・2m=8枚・3m=10枚・4m=8枚入＝実物の束）。空欄に実数を記入。印字 '+now+'</div>'
     +'<div class="noprint" style="text-align:center;margin-top:10px"><button onclick="window.print()" style="padding:9px 24px;font-size:13px;font-weight:bold;cursor:pointer;border-radius:8px;border:1px solid #333;background:#fff">🖨 印刷する</button></div>'
     +'</body></html>';
 }
-document.getElementById('foot').innerHTML='色＝最終販売・出荷からの経過（Yahoo・楽天の直近販売＋A級は市場出荷・加工予定の受注(仮)も含む）。空欄＝該当規格なし／無限在庫。在庫は<b>束</b>表示。'
+document.getElementById('foot').innerHTML='色＝最終販売・出荷からの経過（Yahoo・楽天の直近販売＋A級は市場出荷・加工予定の受注(仮)も含む）。空欄＝該当規格なし／無限在庫。在庫は<b>束</b>表示（910=10枚・2m=8枚・3m=10枚・4m=8枚入）。'
  +' &nbsp;|&nbsp; 在庫＝資産情報のため合言葉で保護。価格はYahoo・楽天をそれぞれ独立に編集して各モールへ反映（楽天は入数/送料込み体系が違うため別欄で実価格を入力）。';
 
 boot();
