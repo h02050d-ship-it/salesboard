@@ -1013,7 +1013,8 @@ function render(){
   let html='';
   if(aG.length&&bG.length) html+='<div class="board-2col"><div class="bcol">'+secBlock('A',aG,'A級品')+'</div><div class="bcol">'+secBlock('B',bG,'B級品')+'</div></div>';
   else if(aG.length||bG.length) html+=(aG.length?secBlock('A',aG,'A級品'):secBlock('B',bG,'B級品'));   // 片方だけ（品質フィルタ時）は全幅で表示＝空カラムを作らない
-  if(subG.length) html+='<div class="board-sub">'+secBlock('副',subG,'オリジナル・105幅（副産物）','s')+'</div>';
+  const subTitle=hide105?'オリジナル（副産物）':'オリジナル・105幅（副産物）';
+  if(subG.length) html+='<div class="board-sub">'+secBlock('副',subG,subTitle,'s')+'</div>';
   if(!html) html='<div style="text-align:center;color:var(--sub);padding:60px">該当なし</div>';
   const grid=document.getElementById('grid');
   grid.innerHTML=html;
@@ -1466,7 +1467,8 @@ document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{document.
 ['sortSel','qSel'].forEach(id=>document.getElementById(id).onchange=render);
 document.getElementById('q').oninput=render;
 // 隠すチェック（105幅/オリジナル/スノコ・状態は端末に保持）
-(function(){ [['hide105','hayazai_hide105'],['hideOrig','hayazai_hideOrig'],['hideSnoko','hayazai_hideSnoko']].forEach(function(p){ const el=document.getElementById(p[0]); el.checked=localStorage.getItem(p[1])==='1'; el.onchange=()=>{ try{localStorage.setItem(p[1],el.checked?'1':'0');}catch(e){} render(); }; }); })();
+// 105幅は今後生産しない（2026-09-01〜）ため既定でON＝非表示。見たいときはチェックを外せば復活する。
+(function(){ [['hide105','hayazai_hide105',true],['hideOrig','hayazai_hideOrig',false],['hideSnoko','hayazai_hideSnoko',false]].forEach(function(p){ const el=document.getElementById(p[0]); const v=localStorage.getItem(p[1]); el.checked=(v===null?p[2]:v==='1'); el.onchange=()=>{ try{localStorage.setItem(p[1],el.checked?'1':'0');}catch(e){} render(); }; }); })();
 
 /* ===== ランキング（売れ筋・死に筋／滞留） ===== */
 let rankState={metric:'hot', per:90};
