@@ -512,9 +512,10 @@
     <div class="rkh">
       <h3>🛒 楽天 未反映リスト</h3>
       <button id="rkClaudeAllBtn" class="tbtn" style="margin-left:auto;border-color:#7b61ff;color:#5b3fd6;font-weight:800" onclick="rkClaudeAll()">🤖 まとめてClaudeで反映</button>
+      <button class="tbtn" onclick="rkTodoCheck()" title="楽天の実際の値を見て、もう反映済みのものをこのリストとタスクから自動で消します">🔄 反映済みを確認</button>
       <button class="x" id="rkTodoX">✕</button>
     </div>
-    <div class="rank-note">ボードで変更した価格・ポイントのうち、<b>楽天へ自動反映できなかったもの</b>（楽天のAPI反映は有料オプションのため）。<b>🤖ボタンでClaudeへの反映依頼をコピー</b>→Claudeに貼り付けると、Claudeが楽天RMS（ログイン済みChrome）を操作して「新しい値」に更新します（保存前に一覧提示・確認）。反映後はこのリストから自動で消えます。手動でやった場合は <b>✓済</b> を押してください。</div>
+    <div class="rank-note">ボードで変更した価格・ポイントのうち、<b>楽天へ自動反映できなかったもの</b>（楽天のAPI反映は有料オプションのため）。<b>🤖ボタンでClaudeへの反映依頼をコピー</b>→Claudeに貼り付けると、Claudeが楽天RMS（ログイン済みChrome）を操作して「新しい値」に更新します（保存前に一覧提示・確認）。手動でやった場合は <b>✓済</b> を押してください。<br>💡 保存した時点で<b>大樹さんのLINEへ通知＋タスク管理に自動登録</b>（毎朝＋日中にリマインド）。RMSで反映すれば<b>1時間以内に自動検知してリスト・タスクから自動で消えます</b>（🔄で即確認）。</div>
     <div class="rank-body" id="rkTodoBody"></div>
   </div>
 </div>
@@ -1452,7 +1453,7 @@ async function applyEdits(){
       const shown=allErrs.filter(er=>!(er.indexOf('楽天')>=0&&er.indexOf('401')>=0));
       let msg=(j.applied>0)?('✅ 反映しました：'+j.applied+'件'):'自動反映できた項目はありませんでした';
       if(j.notes&&j.notes.length) msg+='\n'+j.notes.join('\n');
-      if(j.rktodoAdded) msg+='\n\n🛒 楽天は自動反映できないため「楽天 手動反映リスト」に記録しました（現在 '+j.rktodo+'件）。\nツールバーの🛒ボタン → RMSで更新 → ✓で消し込み。';
+      if(j.rktodoAdded) msg+='\n\n🛒 楽天は自動反映できないため「楽天 手動反映リスト」に記録しました（現在 '+j.rktodo+'件）。\nLINEに通知＋タスク管理に登録済み（毎朝・日中にリマインド）。\nツールバーの🛒ボタン → RMSで更新 → 反映すれば自動で消えます（✓済でも可）。';
       if(shown.length) msg+='\n\n⚠️ 失敗 '+shown.length+'件:\n'+shown.join('\n');
       const keep=(j.applied===0 && !j.rktodoAdded && shown.length>0);   // 例:Yahooトークン切れ→編集を保持して再試行可能に
       if(keep){ msg+='\n\n変更は保留のまま残しています（原因解消後にもう一度「保存して同期」できます）。'; }
@@ -1848,10 +1849,18 @@ function renderRkTodo(){
   if(!RKTODO.length){ body.innerHTML='<div class="rank-empty">未反映はありません 🎉</div>'; return; }
   body.innerHTML=RKTODO.map(t=>{
     const url=(MALLBASE.rakuten&&t.code)?(MALLBASE.rakuten+t.code+'/'):'';
-    const val=(t.kind==='価格')?yen(+t.value||0):t.value;
+    const isP=(t.kind==='価格');
+    const nv=Math.round(Number(String(t.value).replace(/[^0-9.-]/g,''))||0);
+    const val=isP?yen(nv):(nv+'倍');
+    // 旧値→新値と差額（本人要望: いくらから いくらへ・いくら変わるのかを出す）
+    const hasOld=(t.old!==null&&t.old!==undefined&&isFinite(+t.old));
+    const d=hasOld?(nv-(+t.old)):null;
+    const dcol=(d>0)?'#c0392b':(d<0?'#1a7f37':'var(--sub)');
+    const oldTxt=hasOld?(isP?yen(+t.old):((+t.old)+'倍')):'—';
+    const diffTxt=hasOld?('<b style="color:'+dcol+'">'+(d>=0?'+':'−')+(isP?yen(Math.abs(d)):(Math.abs(d)+'倍'))+'</b>'):'<span style="color:var(--sub)">旧値不明</span>';
     return '<div class="rrow" style="cursor:default">'
       +'<div class="ri"><div class="t">'+t.tag+'　<span style="color:var(--sub);font-family:ui-monospace,monospace;font-size:10px">'+t.code+'</span></div>'
-      +'<div class="s">'+t.date+' ・ '+t.kind+'</div></div>'
+      +'<div class="s">'+t.date+' ・ '+t.kind+' ・ 現在 '+oldTxt+' → '+val+' 　'+diffTxt+'</div></div>'
       +'<div class="rv" style="min-width:86px">'+val+'<small>新しい値</small></div>'
       +(url?'<a class="tbtn" target="_blank" rel="noopener" href="'+url+'" style="text-decoration:none">商品↗</a>':'')
       +'<button class="tbtn" style="border-color:#7b61ff;color:#5b3fd6;font-weight:800" onclick="rkClaudeOne('+t.row+')">🤖 Claudeで反映</button>'
@@ -1862,8 +1871,13 @@ function renderRkTodo(){
 function rkClaudeText(items){
   const lines=items.map((t,i)=>{
     const url=(MALLBASE.rakuten&&t.code)?(MALLBASE.rakuten+t.code+'/'):'(商品ページURL不明)';
-    const val=(t.kind==='価格')?('¥'+(+t.value||0).toLocaleString()):(t.value+'倍');
-    return (i+1)+'. 商品コード '+t.code+'（'+t.tag+'）  '+t.kind+' → '+val+'\n   商品ページ: '+url+'\n   消し込み用row: '+t.row;
+    const isP=(t.kind==='価格');
+    const nv=Math.round(Number(String(t.value).replace(/[^0-9.-]/g,''))||0);
+    const f=v=>isP?('¥'+Number(v).toLocaleString()):(v+'倍');
+    const hasOld=(t.old!==null&&t.old!==undefined&&isFinite(+t.old));
+    const d=hasOld?(nv-(+t.old)):null;
+    const chg=hasOld?(f(+t.old)+' → '+f(nv)+'（差額 '+(d>=0?'+':'-')+(isP?('¥'+Math.abs(d).toLocaleString()):(Math.abs(d)+'倍'))+'）'):(f(nv)+'へ');
+    return (i+1)+'. 商品コード '+t.code+'（'+t.tag+'）  '+t.kind+' '+chg+'\n   商品ページ: '+url+'\n   消し込み用row: '+t.row;
   }).join('\n');
   return '楽天RMSで以下の価格/ポイントを反映してください。\n'
     +'・ログイン済みのChrome（楽天RMS）を使って操作\n'
@@ -1916,6 +1930,20 @@ async function rkTodoDone(row){
       RK_POINTS=null; try{localStorage.removeItem(RKP_CACHE);}catch(e){}   // 手動更新後の倍率/価格を次回取得し直す
     } else alert('消し込みに失敗: '+((j&&j.error)||'不明'));
   }catch(e){ alert('通信失敗: '+e.message); }
+}
+// 楽天のライブ値を見て「もう反映済み」を今すぐ自動消し込み（毎時サーバー側でも自動実行）
+async function rkTodoCheck(){
+  const body=document.getElementById('rkTodoBody');
+  body.innerHTML='<div class="rank-empty"><span class="spin sm"></span>楽天の実際の値と照合中…（数十秒かかることがあります）</div>';
+  try{
+    const r=await fetch(GAS_URL+'?api=rktodocheck&'+authQS());
+    const j=await r.json();
+    if(j&&j.ok){
+      RKTODO=j.items||[]; RKTODO_N=RKTODO.length; updateRkTodoBadge(); renderRkTodo();
+      toast(j.resolved?('✅ 反映済み '+j.resolved+'件を消し込みました（残 '+j.remain+'件）'):'まだ反映は確認できませんでした（残 '+j.remain+'件）');
+      if(j.resolved){ RK_POINTS=null; try{localStorage.removeItem(RKP_CACHE);}catch(e){} }
+    } else { renderRkTodo(); alert('確認に失敗: '+((j&&j.error)||'不明')); }
+  }catch(e){ renderRkTodo(); alert('通信失敗: '+e.message); }
 }
 document.getElementById('rkTodoBtn').onclick=openRkTodo;
 document.getElementById('rkTodoX').onclick=closeRkTodo;
