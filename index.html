@@ -310,6 +310,20 @@
   .btn.loading{pointer-events:none;opacity:.75}
   .btn.primary{background:var(--accent);color:#fff}
   .save-row{display:flex;gap:9px;margin-top:13px}
+  /* 変更検出バー（数値を変えた瞬間に出る「保存して同期」） */
+  .chg-bar{display:none;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg);box-shadow:0 -6px 18px rgba(40,25,10,.08)}
+  .chg-bar.show{display:block}
+  .chg-bar .chg-t{font-size:12px;font-weight:800;color:var(--ink);line-height:1.6}
+  .chg-bar .chg-t small{display:block;font-size:11px;color:var(--sub);font-weight:700;margin-top:2px}
+  .chg-bar .chg-b{display:flex;gap:9px;margin-top:10px}
+  /* 未保存のまま閉じようとしたときの確認 */
+  .d-ask{display:none;position:absolute;inset:0;z-index:5;background:rgba(30,20,8,.45);align-items:flex-end;justify-content:stretch;padding:16px}
+  .d-ask.show{display:flex}
+  .d-ask .ask-box{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:16px;width:100%}
+  .d-ask .ask-t{font-size:14px;font-weight:800;margin-bottom:6px}
+  .d-ask .ask-s{font-size:12px;color:var(--sub);line-height:1.7;margin-bottom:12px}
+  .d-ask .ask-b{display:flex;flex-direction:column;gap:8px}
+  .d-ask .ask-b .btn{flex:none;width:100%}
   .btn.ghost{background:var(--bg);color:var(--sub);border:1px solid var(--line);flex:0 0 auto;padding:13px 16px}
   .snz-btns .btn:active{transform:scale(.94)}
 
@@ -531,6 +545,8 @@
 <aside class="drawer" id="drawer">
   <div class="dh"><div class="grp" id="dGrp"></div><div class="ttl" id="dTtl"></div><button class="x" id="dX">✕</button></div>
   <div class="dbody" id="dBody"></div>
+  <div class="chg-bar" id="dChg"></div>
+  <div class="d-ask" id="dAsk"></div>
 </aside>
 
 <div class="savebar" id="saveBar">
@@ -1152,6 +1168,7 @@ let cur=null;
 function openDrawer(gi,key){
   const g=DATA.find(x=>x.gi===gi); const c=g.cells[key];
   cur={gi,g,c};
+  drawerDirty=false; chgDismissed=false; hideChgBar(); hideAsk();
   document.getElementById('dGrp').textContent=g.name;
   document.getElementById('dTtl').textContent=c.length+'mm（束='+physUnit(c.length)+'枚入'+(SUB_BUNDLE[c.length]?('・EC='+BUNDLE[c.length]+'枚入'):'')+'） ／ '+c.grade;
   const s=curStock(gi,c), py=curPriceY(gi,c), pr=curPriceR(gi,c), bk=bucket(c.combined);
@@ -1224,8 +1241,8 @@ function openDrawer(gi,key){
    + priceBlock
    + '<div id="ptDrawSlot"></div>'
    + '<div id="wsDrawSlot"></div>'
-   + '<div class="save-row"><button class="btn ghost" onclick="resetCell()">戻す</button><button class="btn primary" onclick="stageCell()">変更を保留に追加</button></div>'
-   + '<div class="note-tip">💡 「変更を保留に追加」で下部リストに溜め、'+(SOURCE==='live'?'「保存して同期」でスプシ更新＋Yahoo/楽天へ反映':'本番接続時にスプシ＋モール反映')+'します（在庫の束＝910:10枚・2m:8枚・3m:10枚・4m:8枚入。EC送信時は自動換算）。</div>';
+   + '<div class="save-row"><button class="btn ghost" onclick="resetCell()">戻す</button><button class="btn primary" onclick="saveCellNow()">保存して同期</button></div>'
+   + '<div class="note-tip">💡 数値を変えると下に確認バーが出ます。<b>「保存して同期」1回で</b>'+(SOURCE==='live'?'スプシ更新＋Yahoo/楽天へ反映':'（本番接続時に）スプシ＋モール反映')+'まで完了します（在庫の束＝910:10枚・2m:8枚・3m:10枚・4m:8枚入。EC送信時は自動換算）。</div>';
   document.getElementById('scrim').classList.add('show');
   document.getElementById('drawer').classList.add('show');
   // 楽天価格はスプシD列が更新されない＝古いので、開いた瞬間に実価格をライブ取得して差し替える
@@ -1236,7 +1253,7 @@ function openDrawer(gi,key){
   // 卸価格（付売・市売）を該当規格に表示（未ロードなら取得後に挿入）
   fillWsSlot(); ensureWholesale().then(fillWsSlot);
 }
-function bumpPoint(d){ const i=document.getElementById('ptInR'); if(i) i.value=Math.max(1,Math.min(20,(+i.value||1)+d)); }
+function bumpPoint(d){ const i=document.getElementById('ptInR'); if(i){ i.value=Math.max(1,Math.min(20,(+i.value||1)+d)); onCellEdited(); } }
 function renderPointSlot(c, rate, state){
   const slot=document.getElementById('ptDrawSlot'); if(!slot||!cur) return;
   let html='';
@@ -1292,30 +1309,87 @@ async function loadLiveRakutenPrice(gi,c,code){
     if(origEl) origEl.innerHTML='現在の登録: '+yen(sheetPrice)+' <span style="color:var(--o-ink);font-weight:700">⚠ 実価格の取得に失敗</span>';
   }
 }
-function bumpStock(d){ const i=document.getElementById('stkIn'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
-function bumpPriceY(d){ const i=document.getElementById('prInY'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
-function bumpPriceR(d){ const i=document.getElementById('prInR'); if(i) i.value=Math.max(0,(+i.value||0)+d); }
+function bumpStock(d){ const i=document.getElementById('stkIn'); if(i){ i.value=Math.max(0,(+i.value||0)+d); onCellEdited(); } }
+function bumpPriceY(d){ const i=document.getElementById('prInY'); if(i){ i.value=Math.max(0,(+i.value||0)+d); onCellEdited(); } }
+function bumpPriceR(d){ const i=document.getElementById('prInR'); if(i){ i.value=Math.max(0,(+i.value||0)+d); onCellEdited(); } }
 function resetCell(){
   const st=document.getElementById('stkIn'); if(st) st.value=toPhys(cur.c.stock,cur.c.length);
   const py=document.getElementById('prInY'); if(py) py.value=cur.c.yahoo?(+cur.c.yahoo.price||0):0;
   const pr=document.getElementById('prInR'); if(pr) pr.value=cur.c.rakuten?(+cur.c.rakuten.price||0):0;
   const pt=document.getElementById('ptInR'); if(pt) pt.value=(cur.c.rakutenPoint!=null?cur.c.rakutenPoint:1);
+  drawerDirty=false; chgDismissed=false; hideChgBar();
 }
-function stageCell(){
-  const k=ckey(cur.gi,cur.c.length,cur.c.grade);
+// 開いているセルの入力欄と現在値の差分を集める（保留・保存・未保存ガードで共用）
+function collectCellRec(){
+  const out={rec:{},diffs:[]};
+  if(!cur) return out;
+  const c=cur.c;
   const stEl=document.getElementById('stkIn');   // 無限在庫セルには入力欄が無い
   const pyEl=document.getElementById('prInY'), prEl=document.getElementById('prInR'), ptEl=document.getElementById('ptInR');
-  const rec={};
-  if(stEl){ const sv=toSheet(Math.max(0,+stEl.value||0),cur.c.length); if(sv!==cur.c.stock) rec.stock=sv; }   // 入力は物理束→シート束へ換算して保留
-  if(pyEl){ const base=cur.c.yahoo?(+cur.c.yahoo.price||0):0; const v=Math.max(0,+pyEl.value||0); if(v!==base) rec.priceY=v; }
-  if(prEl){ const base=cur.c.rakuten?(+cur.c.rakuten.price||0):0; const v=Math.max(0,+prEl.value||0); if(v!==base) rec.priceR=v; }
-  if(ptEl){ const base=(cur.c.rakutenPoint!=null)?cur.c.rakutenPoint:1; const v=Math.max(1,Math.min(20,+ptEl.value||1)); if(v!==base) rec.pointR=v; }
-  if(Object.keys(rec).length) edits[k]=rec; else delete edits[k];
-  closeDrawer(); render();
+  if(stEl){ const pv=Math.max(0,+stEl.value||0), sv=toSheet(pv,c.length);   // 入力は物理束→シート束へ換算
+    if(sv!==c.stock){ out.rec.stock=sv; out.diffs.push('📦 在庫 '+toPhys(c.stock,c.length)+'束 → '+pv+'束'); } }
+  if(pyEl){ const base=c.yahoo?(+c.yahoo.price||0):0, v=Math.max(0,+pyEl.value||0);
+    if(v!==base){ out.rec.priceY=v; out.diffs.push('Yahoo価格 '+yen(base)+' → '+yen(v)); } }
+  if(prEl){ const base=c.rakuten?(+c.rakuten.price||0):0, v=Math.max(0,+prEl.value||0);
+    if(v!==base){ out.rec.priceR=v; out.diffs.push('楽天価格 '+yen(base)+' → '+yen(v)); } }
+  if(ptEl){ const base=(c.rakutenPoint!=null)?c.rakutenPoint:1, v=Math.max(1,Math.min(20,+ptEl.value||1));
+    if(v!==base){ out.rec.pointR=v; out.diffs.push('⭐ 楽天ポイント '+base+'倍 → '+v+'倍'); } }
+  return out;
 }
-function closeDrawer(){ document.getElementById('scrim').classList.remove('show'); document.getElementById('drawer').classList.remove('show'); }
-document.getElementById('dX').onclick=closeDrawer;
-document.getElementById('scrim').onclick=closeDrawer;
+function stageCell(){   // 保留リストに入れるだけ（同期はしない）
+  const k=ckey(cur.gi,cur.c.length,cur.c.grade), r=collectCellRec();
+  if(Object.keys(r.rec).length) edits[k]=r.rec; else delete edits[k];
+  drawerDirty=false; hideChgBar();
+  closeDrawer(true); render();
+}
+// 「保存して同期」＝保留に入れて、そのままスプシ＋モール反映まで1回で実行
+async function saveCellNow(){
+  if(!cur) return;
+  stageCell();
+  if(Object.keys(edits).length) await applyEdits();
+}
+
+/* ===== 数値を変えた瞬間の確認バー ===== */
+let drawerDirty=false, chgDismissed=false, chgTimer=null;
+function onCellEdited(){   // 入力・＋−ボタンの両方から呼ぶ（入力中・連打中は少し待ってから出す）
+  drawerDirty=true; chgDismissed=false;
+  clearTimeout(chgTimer); chgTimer=setTimeout(renderChgBar,600);
+}
+function renderChgBar(){
+  const bar=document.getElementById('dChg'); if(!bar) return;
+  if(!cur||chgDismissed){ hideChgBar(); return; }
+  const d=collectCellRec().diffs;
+  if(!d.length){ hideChgBar(); return; }
+  bar.innerHTML='<div class="chg-t">⚡ 変更されました<small>'+d.join('　／　')+'</small></div>'
+    +'<div class="chg-b"><button class="btn ghost" onclick="dismissChg()">あとで</button>'
+    +'<button class="btn primary" onclick="saveCellNow()">'+(SOURCE==='live'?'保存して同期':'保存（サンプル）')+'</button></div>';
+  bar.classList.add('show');
+}
+function hideChgBar(){ const b=document.getElementById('dChg'); if(b){ b.classList.remove('show'); b.innerHTML=''; } clearTimeout(chgTimer); }
+function dismissChg(){ chgDismissed=true; hideChgBar(); }
+document.getElementById('dBody').addEventListener('input',function(e){
+  if(e.target&&['stkIn','prInY','prInR','ptInR'].indexOf(e.target.id)>=0) onCellEdited();
+});
+
+/* ===== 未保存のまま閉じようとしたとき ===== */
+function hideAsk(){ const a=document.getElementById('dAsk'); if(a){ a.classList.remove('show'); a.innerHTML=''; } }
+function askUnsaved(diffs){
+  const a=document.getElementById('dAsk'); if(!a) return;
+  a.innerHTML='<div class="ask-box"><div class="ask-t">⚠️ 保存していない変更があります</div>'
+    +'<div class="ask-s">'+diffs.join('<br>')+'</div>'
+    +'<div class="ask-b"><button class="btn primary" onclick="hideAsk();saveCellNow()">保存して同期して閉じる</button>'
+    +'<button class="btn ghost" onclick="discardAndClose()">保存せずに閉じる</button>'
+    +'<button class="btn ghost" onclick="hideAsk()">編集に戻る</button></div></div>';
+  a.classList.add('show');
+}
+function discardAndClose(){ if(cur) resetCell(); hideAsk(); closeDrawer(true); }
+function closeDrawer(force){
+  if(!force&&cur&&drawerDirty){ const d=collectCellRec().diffs; if(d.length){ askUnsaved(d); return; } }
+  drawerDirty=false; hideChgBar(); hideAsk();
+  document.getElementById('scrim').classList.remove('show'); document.getElementById('drawer').classList.remove('show');
+}
+document.getElementById('dX').onclick=()=>closeDrawer();
+document.getElementById('scrim').onclick=()=>closeDrawer();
 
 /* ===== 保存バー ===== */
 function updateSaveBar(){
@@ -1340,6 +1414,7 @@ async function applyEdits(){
   });
   if(SOURCE!=='live'){
     alert('【サンプル】'+keys.length+'件の変更を確認しました。\n本番（ライブ接続）では スプシ更新＋Yahoo/楽天へ反映します。');
+    edits={}; render();
     return;
   }
   // 楽天ポイント倍率の変更は稀で高影響（在庫束数と取り違えやすい）→ 適用前に必ず確認
