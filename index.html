@@ -96,9 +96,12 @@
 
   .grid{max-width:1760px;margin:0 auto;padding:14px 20px;display:block}
   /* A級=左(コンパクト) / B級=右(広め)を横並び。各カラム内のカードは横並び(折り返し) */
-  .board-2col{display:grid;grid-template-columns:minmax(360px,440px) 1fr;gap:20px;align-items:start}
+  .board-2col{display:grid;grid-template-columns:minmax(360px,440px) minmax(0,1fr);gap:20px;align-items:start;justify-content:center}
   .bcol{min-width:0}
-  .bcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin-top:14px}
+  /* カードは中央ぞろえ。幅が足りなければ詰めて広がり、余れば左右へ均等に配分＝右側だけ余るのを防ぐ（最終行の1枚も中央） */
+  .bcards{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin-top:14px}
+  .bcards>*{flex:1 1 300px;max-width:360px;min-width:0}
+  .board-2col .bcol:first-child .bcards>*{max-width:none}   /* A級カラムは元々1枚並び＝幅いっぱい使う */
   .board-2col .section{margin-top:0}
   .board-sub{margin-top:22px}
   @media(max-width:1000px){ .board-2col{grid-template-columns:1fr} }
