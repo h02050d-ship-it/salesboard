@@ -412,7 +412,7 @@
     <option value="A">A級のみ</option>
     <option value="B">B級のみ</option>
   </select>
-  <span class="thide">隠す<label><input type="checkbox" id="hide105">105幅</label><label><input type="checkbox" id="hideOrig">オリジナル</label><label><input type="checkbox" id="hideSnoko">スノコ</label></span>
+  <span class="thide">隠す<label><input type="checkbox" id="hideOrig">オリジナル</label><label><input type="checkbox" id="hideSnoko">スノコ</label></span>
   <div class="search">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="m20 20-3-3"/></svg>
     <input id="q" placeholder="規格を検索…">
@@ -578,6 +578,9 @@ const toSheet=(n,L)=>SUB_BUNDLE[L]?Math.round(n*SUB_BUNDLE[L]/(BUNDLE[L]||20)*10
 const physUnit=(L)=>SUB_BUNDLE[L]||BUNDLE[L]||20;               // 表示束の1束あたり枚数
 const physFromTag=(n,tag)=>{ const m=String(tag||'').match(/\b(910|2000|3000|4000)\b/); return m?toPhys(n,+m[1]):n; };   // 規格名から長さを拾って換算
 const LEN_ORDER=[910,2000,3000,4000], GRADE_ORDER=['丸節','小節','特上小','無節'];
+// 105mm幅は2026-09-01以降 生産しないためボードから常時非表示（在庫データ自体は保持＝棚卸・同期には出る）。
+// 再表示したくなったら false に戻すだけでよい。
+const HIDE_105=true;
 const WIDTH2GROUP={'120mm幅':'標準','105mm幅':'幅狭','オリジナル':'オリジナル'};
 
 /* ===== 木取り上乗せ設定（表示専用・実在庫[スプシ値]は絶対に変えない） =====
@@ -952,7 +955,7 @@ function render(){
   const sort=document.getElementById('sortSel').value;
   const qf=document.getElementById('qSel').value;
   const kw=document.getElementById('q').value.trim();
-  const hide105=document.getElementById('hide105').checked;
+  const hide105=HIDE_105;
   const hideOrig=document.getElementById('hideOrig').checked;
   const hideSnoko=document.getElementById('hideSnoko').checked;
   document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':(mode==='order'?' ordmode':(mode==='point'?' ptmode':''))));
@@ -1468,7 +1471,7 @@ document.querySelectorAll('#modeSeg button').forEach(b=>b.onclick=()=>{document.
 document.getElementById('q').oninput=render;
 // 隠すチェック（105幅/オリジナル/スノコ・状態は端末に保持）
 // 105幅は今後生産しない（2026-09-01〜）ため既定でON＝非表示。見たいときはチェックを外せば復活する。
-(function(){ [['hide105','hayazai_hide105',true],['hideOrig','hayazai_hideOrig',false],['hideSnoko','hayazai_hideSnoko',false]].forEach(function(p){ const el=document.getElementById(p[0]); const v=localStorage.getItem(p[1]); el.checked=(v===null?p[2]:v==='1'); el.onchange=()=>{ try{localStorage.setItem(p[1],el.checked?'1':'0');}catch(e){} render(); }; }); })();
+(function(){ [['hideOrig','hayazai_hideOrig'],['hideSnoko','hayazai_hideSnoko']].forEach(function(p){ const el=document.getElementById(p[0]); el.checked=localStorage.getItem(p[1])==='1'; el.onchange=()=>{ try{localStorage.setItem(p[1],el.checked?'1':'0');}catch(e){} render(); }; }); })();
 
 /* ===== ランキング（売れ筋・死に筋／滞留） ===== */
 let rankState={metric:'hot', per:90};
