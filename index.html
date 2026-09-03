@@ -401,7 +401,7 @@
     <button data-mode="point">⭐ ポイント</button>
   </div>
   <button id="rkTodoBtn" class="tbtn rktodo-alert" title="ボードで変更したが楽天へ未反映のもの（RMSで手動更新→✓で消し込み）" style="display:none">⚠️ 楽天 未反映 <span class="rkbadge" id="rkTodoN">0</span>件 → 要手動更新</button>
-  <button id="pgapBtn" class="tbtn pgap-alert" title="楽天とヤフーの価格がヤフー基準（910=×2/他=同額）からズレている規格。RMSで合わせる" style="display:none">🔺 楽天⇔ヤフー 価格ズレ <span class="rkbadge" id="pgapN">0</span>件</button>
+  <button id="pgapBtn" class="tbtn pgap-alert" title="楽天とヤフーの価格がヤフー基準（910=×2/他=同額）からズレている規格＋A級標準の原板共通ズレ（羽目板≠フローリング15mm）" style="display:none">🔺 楽天⇔ヤフー 価格ズレ <span class="rkbadge" id="pgapN">0</span>件</button>
   <button id="rkhidBtn" class="tbtn rkhid-alert" title="在庫があるのに楽天の商品が倉庫指定（非表示）のまま＝売り逃し。RMSで販売中に戻す" style="display:none">📦 楽天 倉庫のまま <span class="rkbadge" id="rkhidN">0</span>件 → 売り逃し</button>
   <select id="sortSel">
     <option value="stock">並び: 在庫が多い順</option>
@@ -1980,6 +1980,16 @@ function renderPgap(){
   if(!PGAP.length){ body.innerHTML='<div class="rank-empty">価格ズレはありません 🎉<div style="margin-top:10px"><button class="tbtn" onclick="refreshPgap()">🔄 楽天ライブ価格で再確認</button></div></div>'; return; }
   const head='<div style="text-align:right;margin:-2px 0 8px"><button class="tbtn" onclick="refreshPgap()" title="楽天のマッピング価格をライブ取得し直して再判定">🔄 楽天ライブ価格で再確認</button></div>';
   body.innerHTML=head+PGAP.map(t=>{
+    if(t.kind==='sibling'){   // 原板共通ズレ（ヤフー内: 羽目板/フローリング12mm ≠ フローリング15mm）→ ボードの価格編集で揃える
+      const shopY=(MALLBASE.yahoo&&t.ycode)?(MALLBASE.yahoo+String(t.ycode).toLowerCase()+'.html'):'';
+      const dcol=t.diff>0?'#d9480f':'#1a7f37';
+      return '<div class="rrow" style="cursor:default;border-left:4px solid #7a5c3e">'
+        +'<div class="ri"><div class="t">'+t.tag+'　<span style="color:var(--sub);font-family:ui-monospace,monospace;font-size:10px">'+t.ycode+'</span></div>'
+        +'<div class="s">ヤフー '+t.other+' '+yen(t.yahoo)+' ・ フローリング15mm '+yen(t.expect)+' <b style="color:'+dcol+'">（'+(t.diff>0?'+':'')+t.diff+'）</b>　同じ原板＝同額のはず。ボードでこのマスの価格を '+yen(t.expect)+' に直すとヤフー＋楽天TODOまで一括</div></div>'
+        +'<div class="rv" style="min-width:96px">'+yen(t.expect)+'<small>あるべき</small></div>'
+        +(shopY?'<a class="tbtn" target="_blank" rel="noopener" href="'+shopY+'" style="text-decoration:none">ヤフー商品↗</a>':'')
+        +'</div>';
+    }
     const edit=t.code?(RMS_EDIT_BASE+t.code):'';
     const shop=(MALLBASE.rakuten&&t.code)?(MALLBASE.rakuten+t.code+'/'):'';
     const sign=t.diff>0?'高い':'安い';
@@ -1995,6 +2005,7 @@ function renderPgap(){
 }
 function pgapClaudeText(items){
   const lines=items.map((t,i)=>{
+    if(t.kind==='sibling') return (i+1)+'. '+t.tag+'（ヤフー '+t.ycode+'）\n   ヤフー '+t.other+' '+t.yahoo+'円 → フローリング15mm と同じ '+t.expect+'円 に（売れ行きボードの価格編集＝ヤフー即反映＋楽天は手動TODO）';
     const edit=t.code?(RMS_EDIT_BASE+t.code):'(商品コード不明)';
     const shift=t.expect-t.rakuten;   // オプションもこの差額だけずらす
     return (i+1)+'. '+t.tag+'（'+t.code+'）\n'
