@@ -1434,6 +1434,34 @@ async function applyEdits(){
     edits={}; render();
     return;
   }
+  // 価格・在庫の保存前チェック（2026-09-14 人手入力のうっかり対策）: 原価割れ/粗利15%未満・±30%超の変動・在庫の桁違い・引当割れ を一覧で確認
+  {
+    const warns=[];
+    keys.forEach(k=>{
+      const [gip,L,G]=k.split('|'); const g=DATA.find(x=>x.gi===+gip); if(!g) return;
+      const c=(g.cells||{})[L+'|'+G]; if(!c) return; const rec=edits[k]; const nm=g.name+' '+L+'/'+G;
+      if('priceY'in rec){
+        const base=c.yahoo?(+c.yahoo.price||0):0, v=+rec.priceY;
+        if(base>0&&v>0){ const d=Math.round((v-base)/base*100); if(Math.abs(d)>=30) warns.push('・'+nm+'：Yahoo価格 '+yen(base)+' → '+yen(v)+'（'+(d>0?'+':'')+d+'%）桁を確認'); }
+        const cm=COSTS[g.quality+'|'+c.grade];
+        if(cm&&cm.cube&&v>0){ const vol=0.12*0.018*(c.length/1000); const piece=Math.round(vol*cm.cube+(cm.add||0)); const costB=piece*(BUNDLE[c.length]||20); const rate=Math.round((v-costB)/v*100);
+          if(v<=costB) warns.push('・'+nm+'：Yahoo価格 '+yen(v)+' は原価 '+yen(costB)+' を下回ります（原価割れ）');
+          else if(rate<15) warns.push('・'+nm+'：Yahoo価格 '+yen(v)+' は粗利 '+rate+'%（原価 '+yen(costB)+'・15%未満）'); }
+      }
+      if('priceR'in rec){
+        const base=c.rakuten?(+c.rakuten.price||0):0, v=+rec.priceR;
+        if(base>0&&v>0){ const d=Math.round((v-base)/base*100); if(Math.abs(d)>=30) warns.push('・'+nm+'：楽天価格 '+yen(base)+' → '+yen(v)+'（'+(d>0?'+':'')+d+'%）桁を確認'); }
+      }
+      if('stock'in rec){
+        const oldP=toPhys(c.stock,c.length), newP=toPhys(rec.stock,c.length);
+        if(newP>=10 && oldP>0 && newP>=oldP*3) warns.push('・'+nm+'：在庫 '+oldP+'束 → '+newP+'束（3倍以上）桁を確認');
+        else if(newP>=200 && oldP===0) warns.push('・'+nm+'：在庫 '+newP+'束 は多すぎませんか（桁を確認）');
+        const pcs=rec.stock*(BUNDLE[c.length]||1), rsv=+c.reserved||0;
+        if(rsv>0 && pcs<rsv) warns.push('・'+nm+'：在庫 '+newP+'束（'+pcs+'枚）は加工予定の引当 '+rsv+'枚 を下回ります');
+      }
+    });
+    if(warns.length && !confirm('⚠️ 保存前の確認（'+warns.length+'件）\n\n'+warns.join('\n')+'\n\nこのまま保存しますか？\n「キャンセル」＝保存せず編集に戻る')) return;
+  }
   // 楽天ポイント倍率の変更は稀で高影響（在庫束数と取り違えやすい）→ 適用前に必ず確認
   const ptChanges=updates.filter(u=>'pointRakuten'in u);
   if(ptChanges.length){
