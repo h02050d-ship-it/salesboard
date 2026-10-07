@@ -173,6 +173,23 @@
   .rchip.o .d{color:var(--o-ink)}
   .rchip .sp{color:var(--sub);font-size:10.5px}
   .reorder .more{margin-top:9px;font-size:11.5px;color:var(--accent);font-weight:700;cursor:pointer;background:none;border:0;font-family:inherit;padding:0}
+  /* 発注帯チップの🔕（発注できない期間だけ通知・表示を止める） */
+  .rchip .snzb{margin-left:2px;padding:0 3px;font-size:12px;opacity:.5;line-height:1;border-radius:6px}
+  .rchip .snzb:hover{opacity:1;background:var(--o)}
+  .snzpop{position:fixed;z-index:60;background:var(--card);border:1px solid var(--line);border-radius:13px;box-shadow:0 14px 40px rgba(40,25,10,.22);padding:11px 13px;width:300px;max-width:calc(100vw - 24px);font-size:12px}
+  .snzpop .t{font-weight:800;color:var(--o-ink);margin-bottom:3px}
+  .snzpop .s{font-size:11px;color:var(--sub);line-height:1.5;margin-bottom:8px}
+  .snzpop .opts{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+  .snzpop .opts .btn,.snzpop .dt .btn{padding:7px 6px;font-size:12px;border-radius:9px}
+  .snzpop .dt{display:flex;gap:6px;align-items:center;margin-top:8px}
+  .snzpop .dt input{flex:1;min-width:0;padding:6px 7px;border:1px solid var(--line);border-radius:9px;font-family:inherit;font-size:12px;background:var(--card);color:var(--ink)}
+  .snzpop .dt .btn{flex:none}
+  .snzpop .nt{font-size:10.5px;color:var(--sub);margin-top:8px;line-height:1.5}
+  .reorder .snzlist{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11.5px;color:var(--sub)}
+  .reorder .snzlist .sc{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px dashed var(--line);border-radius:999px;padding:4px 10px;font-size:11.5px;color:var(--ink)}
+  .reorder .snzlist .sc b{color:var(--o-ink);font-weight:800}
+  .reorder .snzlist .sc button{border:0;background:none;cursor:pointer;color:var(--accent);font-weight:700;font-family:inherit;font-size:11px;padding:0}
+  .reorder.calm{border-color:var(--line);background:var(--card)}
 
   /* ランキングモーダル */
   .rank-modal{position:fixed;inset:0;z-index:42;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;background:rgba(20,15,8,.38)}
@@ -294,8 +311,11 @@
   .snz.on .et{color:var(--o-ink)}
   .snz-note{font-size:11px;color:var(--sub);line-height:1.6;margin-bottom:9px}
   .snz-cur{font-size:12.5px;font-weight:700;color:var(--o-ink);line-height:1.6}
-  .snz-btns{display:flex;gap:9px}
-  .snz-btns .btn{flex:1}
+  .snz-btns{display:flex;gap:7px;flex-wrap:wrap}
+  .snz-btns .btn{flex:1;padding:10px 6px;font-size:12.5px}
+  .snz-dt{display:flex;gap:7px;align-items:center;margin-top:8px}
+  .snz-dt input{flex:1;min-width:0;padding:8px 8px;border:1px solid var(--line);border-radius:10px;font-family:inherit;font-size:12.5px;background:var(--card);color:var(--ink)}
+  .snz-dt .btn{flex:none;padding:9px 12px;font-size:12.5px}
   .snz-tag{font-size:11px;font-weight:800;color:var(--o-ink);background:var(--o);padding:2px 8px;border-radius:999px;margin-left:6px;cursor:default}
   .spin.sm{width:14px;height:14px;border-width:2px;display:inline-block;margin:0 6px 0 0;vertical-align:-2px}
 
@@ -883,13 +903,32 @@ function reorderSnoozeBlock(g,c){
       +'<div class="snz-cur"><b>'+until+'</b> まで、上の在庫切れアラート帯・通知（メール/タスク）に出しません。在庫表にはこのまま表示されます。</div>'
       +'<button class="btn ghost" style="margin-top:8px;width:100%" onclick="snoozeReorder(0,this)">🔔 アラート・通知に戻す</button></div>';
   }
-  return '<div class="snz"><div class="et">🔕 在庫切れアラートをしばらく止める</div>'
-    +'<div class="snz-note">補充予定がない規格を、上の在庫切れアラート帯・大樹への通知（メール/タスク）から一定期間 外します。在庫表にはそのまま表示されます。</div>'
-    +'<div class="snz-btns"><button class="btn ghost" onclick="snoozeReorder(7,this)">1週間 見送り</button><button class="btn ghost" onclick="snoozeReorder(30,this)">1ヶ月 見送り</button></div></div>';
+  return '<div class="snz"><div class="et">🔕 発注できない期間は アラート・通知を止める</div>'
+    +'<div class="snz-note">補充できない（仕入先に無い・入荷待ち等）規格を、発注できない期間だけ 上の在庫切れアラート帯・大樹への通知（メール/タスク）から外します。在庫表にはそのまま表示されます。</div>'
+    +'<div class="snz-btns">'+SNOOZE_PERIODS.map(p=>'<button class="btn ghost" onclick="snoozeReorder('+p.d+',this)">'+p.l+'</button>').join('')+'</div>'
+    +'<div class="snz-dt"><input type="date" id="snzDate" min="'+snoozeMinDate_()+'" value="'+snoozeMinDate_(30)+'"><button class="btn ghost" onclick="snoozeReorderUntil(document.getElementById(\'snzDate\').value,this)">この日まで止める</button></div></div>';
 }
-async function snoozeReorder(days,btn){
-  if(!cur) return;
-  const g=cur.g,c=cur.c, key=reorderSnoozeKey(g,c);
+// 見送り期間の選択肢（発注できない期間に合わせて選ぶ）。days は GAS がそのまま受ける＝任意日数OK
+const SNOOZE_PERIODS=[{d:14,l:'2週間'},{d:30,l:'1ヶ月'},{d:60,l:'2ヶ月'},{d:90,l:'3ヶ月'}];
+function snoozeLabel_(days){ const p=SNOOZE_PERIODS.find(x=>x.d===days); return p?p.l:(days===7?'1週間':days+'日間'); }
+function snoozeMinDate_(plus){ const d=new Date(); d.setDate(d.getDate()+(plus||1)); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// 日付指定 → 今日からの日数に換算（その日の同時刻まで止める＝表示は M/d）
+function snoozeDaysUntil_(ymd){
+  if(!ymd) return 0;
+  const t=new Date(ymd+'T00:00:00'); if(isNaN(t)) return 0;
+  const now=new Date(); now.setHours(0,0,0,0);
+  return Math.ceil((t-now)/86400000);
+}
+function snoozeReorderUntil(ymd,btn,g,c){
+  const d=snoozeDaysUntil_(ymd);
+  if(d<1){ alert('明日以降の日付を選んでください'); return; }
+  if(d>365){ alert('1年以内の日付にしてください'); return; }
+  snoozeReorder(d,btn,g,c);
+}
+async function snoozeReorder(days,btn,gg,cc){
+  const g=gg||(cur&&cur.g), c=cc||(cur&&cur.c);
+  if(!g||!c) return;
+  const fromBand=!!gg, key=reorderSnoozeKey(g,c);
   const tag=(g.name||'').replace(/\s*120mm幅/,'')+' '+c.length+'/'+c.grade;
   if(btn){   // 押した瞬間のフィードバック（POST完了まで無反応に見えないように）
     const row=btn.closest('.snz'); if(row) row.querySelectorAll('.btn').forEach(b=>b.classList.add('loading'));
@@ -904,9 +943,9 @@ async function snoozeReorder(days,btn){
     if(j&&j.ok){
       REORDER_SNOOZE=j.reorderSnooze||{};
       try{ const cc=loadCache(); if(cc){ cc.reorderSnooze=REORDER_SNOOZE; localStorage.setItem(CACHE_KEY,JSON.stringify(cc)); } }catch(e){}   // 直後に更新しても一瞬も出さない
-      const lbl=days===7?'1週間':(days===30?'1ヶ月':days+'日');
-      toast(days>0?('🔕 '+lbl+'見送りにしました（'+(REORDER_SNOOZE[key]||'')+'まで アラート・通知に出しません。在庫表には表示のまま）'):'🔔 アラート・通知に戻しました');
-      closeDrawer(); renderReorder(getLeadTime()); render();
+      const lbl=snoozeLabel_(days);
+      toast(days>0?('🔕 '+tag+' を '+(REORDER_SNOOZE[key]||'')+'まで止めました（'+lbl+'・アラート帯と通知に出しません。在庫表には表示のまま）'):'🔔 '+tag+' をアラート・通知に戻しました');
+      closeSnoozePop(); if(!fromBand) closeDrawer(); renderReorder(getLeadTime()); render();
     } else { restoreSnzBtn_(btn); alert('失敗: '+((j&&j.error)||'不明')); }
   }catch(e){ restoreSnzBtn_(btn); alert('通信失敗: '+e.message); }
 }
@@ -1120,9 +1159,10 @@ function renderReorder(LT){
   if(SOURCE!=='live'){ box.classList.add('hidden'); return; }
   // リスク＝無限・実績なしを除き、残日数 ≤ LT*2 のものを近い順に
   const risk=buildRiskRows().filter(r=>r.dl<=LT*2).sort((a,b)=>a.dl-b.dl);
+  const snoozed=buildSnoozedRows();
   const ltCtl='<span class="lt">仕入リードタイム <input id="ltIn" type="number" inputmode="numeric" min="1" value="'+LT+'"> 日</span>';
-  if(!risk.length){
-    box.classList.add('hidden'); box.innerHTML='';   // 在庫切れ間近がゼロなら帯ごと非表示
+  if(!risk.length&&!snoozed.length){
+    box.classList.add('hidden'); box.innerHTML='';   // 在庫切れ間近も見送り中もゼロなら帯ごと非表示
     return;
   }
   const urgent=risk.filter(r=>r.dl<=LT).length;
@@ -1132,16 +1172,64 @@ function renderReorder(LT){
     return '<button class="rchip '+b+'" data-gi="'+r.gi+'" data-k="'+r.key+'">'
       +'<span class="d">'+(r.dl<=0?'在庫切れ':'あと'+r.dl+'日')+'</span>'
       +'<span>'+r.label+'</span>'
-      +'<span class="sp">在庫'+toPhys(r.stock,r.length)+'束</span></button>';
+      +'<span class="sp">在庫'+toPhys(r.stock,r.length)+'束</span>'
+      +'<span class="snzb" data-gi="'+r.gi+'" data-k="'+r.key+'" title="発注できない期間は 通知・表示を止める">🔕</span></button>';
   }).join('');
   const more=risk.length>8?'<button class="more" id="reMore">'+(reorderExpanded?'閉じる':'＋他'+(risk.length-8)+'件を表示')+'</button>':'';
-  box.classList.remove('hidden');
-  box.innerHTML='<div class="rh"><span class="cnt">🚨 '+risk.length+'規格</span>が在庫切れ間近'
-    +(urgent?'（うち<b>'+urgent+'件</b>がリードタイム内＝今すぐ手配）':'')+ltCtl+'</div>'
-    +'<div class="chips">'+chips+'</div>'+more;
+  // 見送り中の一覧（再表示日・戻すボタン）。帯から止めた規格がどこに行ったか分かるように常に見せる
+  const snzList=snoozed.length?('<div class="snzlist">🔕 停止中 '+snoozed.length+'件：'
+    +snoozed.map(r=>'<span class="sc">'+r.label+' <b>'+r.until+'まで</b><button data-gi="'+r.gi+'" data-k="'+r.key+'" class="snzoff">🔔 戻す</button></span>').join('')
+    +'</div>'):'';
+  box.classList.remove('hidden'); box.classList.toggle('calm',!risk.length);
+  box.innerHTML='<div class="rh">'
+    +(risk.length?('<span class="cnt">🚨 '+risk.length+'規格</span>が在庫切れ間近'+(urgent?'（うち<b>'+urgent+'件</b>がリードタイム内＝今すぐ手配）':'')):'<span class="ok">✅ 在庫切れ間近なし</span>')
+    +ltCtl+'</div>'
+    +(chips?('<div class="chips">'+chips+'</div>'):'')+more+snzList;
   box.querySelectorAll('.rchip').forEach(el=>el.onclick=()=>openDrawer(+el.dataset.gi,el.dataset.k));
+  box.querySelectorAll('.snzb').forEach(el=>el.onclick=ev=>{ ev.stopPropagation(); openSnoozePop(el,+el.dataset.gi,el.dataset.k); });
+  box.querySelectorAll('.snzoff').forEach(el=>el.onclick=ev=>{ ev.stopPropagation(); const g=DATA.find(x=>x.gi===+el.dataset.gi); const c=g&&g.cells[el.dataset.k]; if(!c) return; el.textContent='解除中…'; snoozeReorder(0,null,g,c); });
   const mo=document.getElementById('reMore'); if(mo) mo.onclick=()=>{ reorderExpanded=!reorderExpanded; renderReorder(getLeadTime()); };
   wireLeadTime();
+}
+// 見送り中（通知・表示停止中）の規格一覧。buildRiskRows と同じキー統合・ラベル
+function buildSnoozedRows(){
+  const seen={}, out=[];
+  scanCells().forEach(r=>{
+    if(r.excl) return;
+    if(!isReorderSnoozed(r.g,r.c)) return;
+    const k=reorderSnoozeKey(r.g,r.c); if(seen[k]) { seen[k].n++; return; }
+    seen[k]={n:1};
+    out.push({gi:r.gi, key:r.key, until:REORDER_SNOOZE[k]||'', _k:k,
+      label:(r.c.coord?(r.g.quality+'級 '+r.length+'/'+r.grade):(r.name.replace(/\s*120mm幅/,'')+' '+r.length+'/'+r.grade))});
+  });
+  out.forEach(o=>{ if(seen[o._k].n>1&&o.label.indexOf('（原板共通）')<0) o.label+='（原板共通）'; });
+  return out;
+}
+// 帯のチップ🔕 → 期間を選ぶ小窓（発注できない期間に合わせて 2週間/1ヶ月/2ヶ月/3ヶ月/日付指定）
+function openSnoozePop(anchor,gi,key){
+  closeSnoozePop();
+  const g=DATA.find(x=>x.gi===gi); const c=g&&g.cells[key]; if(!c) return;
+  const tag=(c.coord?(g.quality+'級 '+c.length+'/'+c.grade+'（原板共通）'):((g.name||'').replace(/\s*120mm幅/,'')+' '+c.length+'/'+c.grade));
+  const pop=document.createElement('div'); pop.className='snzpop'; pop.id='snzPop';
+  pop.innerHTML='<div class="t">🔕 '+tag+'</div>'
+    +'<div class="s">発注できない期間だけ、この帯と通知（メール/タスク）から外します。在庫表には表示のまま。</div>'
+    +'<div class="opts">'+SNOOZE_PERIODS.map(p=>'<button class="btn ghost" data-d="'+p.d+'">'+p.l+'</button>').join('')+'</div>'
+    +'<div class="dt"><input type="date" id="snzPopDate" min="'+snoozeMinDate_()+'" value="'+snoozeMinDate_(30)+'"><button class="btn ghost" id="snzPopGo">この日まで</button></div>'
+    +'<div class="nt">期間が過ぎると自動で戻ります。途中で戻すときは「🔕 停止中」の 🔔 戻す。</div>';
+  document.body.appendChild(pop);
+  const r=anchor.getBoundingClientRect(); const W=300, H=pop.offsetHeight||170;
+  let x=Math.min(Math.max(8,r.left-20), window.innerWidth-W-8), y=r.bottom+8;
+  if(y+H>window.innerHeight-8) y=Math.max(8,r.top-H-8);
+  pop.style.left=x+'px'; pop.style.top=y+'px';
+  pop.querySelectorAll('.opts .btn').forEach(b=>b.onclick=()=>{ b.innerHTML='<span class="spin sm"></span>'; snoozeReorder(+b.dataset.d,null,g,c); });
+  const go=pop.querySelector('#snzPopGo'); go.onclick=()=>{ snoozeReorderUntil(pop.querySelector('#snzPopDate').value,null,g,c); };
+  setTimeout(()=>{ document.addEventListener('click',snoozePopOutside_,true); document.addEventListener('keydown',snoozePopEsc_,true); },0);
+}
+function snoozePopOutside_(ev){ const p=document.getElementById('snzPop'); if(p&&!p.contains(ev.target)) closeSnoozePop(); }
+function snoozePopEsc_(ev){ if(ev.key==='Escape') closeSnoozePop(); }
+function closeSnoozePop(){
+  const p=document.getElementById('snzPop'); if(p) p.remove();
+  document.removeEventListener('click',snoozePopOutside_,true); document.removeEventListener('keydown',snoozePopEsc_,true);
 }
 function wireLeadTime(){
   const i=document.getElementById('ltIn'); if(!i) return;
