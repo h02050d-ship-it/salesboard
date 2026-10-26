@@ -156,6 +156,10 @@
   .stkmode .cell{height:60px}   /* 換算サブ行(910=10枚/2000=8枚)を入れるため在庫モードだけ高くする */
   .ordmode .cell .age{font-size:13px}
   .ptmode .cell .age{font-size:15px} .ptmode .cell .stk{display:none}
+  .allmode .cell{height:62px} .allmode .cell .age{font-size:14px}   /* まとめ=在庫(大)＋価格＋ポイントの3段 */
+  .cell .apr{font-size:10.5px;font-weight:800;line-height:1;margin-top:4px;white-space:nowrap}
+  .cell .apt{font-size:9.5px;font-weight:700;line-height:1;margin-top:3px;white-space:nowrap;opacity:.6}
+  .cell .apt.on{opacity:1;color:#b8860b}
 
   /* 発注アラート帯 */
   .reorder{max-width:1280px;margin:12px auto 0;padding:12px 16px;border-radius:13px;border:1px solid #e0a96d55;background:linear-gradient(100deg,rgba(224,120,60,.14),rgba(224,120,60,.03));box-shadow:var(--shadow)}
@@ -418,7 +422,8 @@
 
 <div class="toolbar">
   <div class="seg" id="modeSeg">
-    <button data-mode="stock" class="on">📦 在庫数</button>
+    <button data-mode="all" class="on" title="在庫数・価格・楽天ポイント倍率を1マスにまとめて表示">📋 まとめ</button>
+    <button data-mode="stock">📦 在庫数</button>
     <button data-mode="price">💴 価格</button>
     <button data-mode="order">🚨 発注</button>
     <button data-mode="point">⭐ ポイント</button>
@@ -1010,11 +1015,11 @@ function render(){
   const hide105=document.getElementById('hide105').checked;
   const hideOrig=document.getElementById('hideOrig').checked;
   const hideSnoko=document.getElementById('hideSnoko').checked;
-  document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':(mode==='order'?' ordmode':(mode==='point'?' ptmode':''))));
+  document.getElementById('grid').className='grid'+(mode==='stock'?' stkmode':(mode==='price'?' prmode':(mode==='order'?' ordmode':(mode==='point'?' ptmode':(mode==='all'?' allmode':'')))));
   const LT=getLeadTime();
   setLegend(mode,LT);
   // ポイントモード初回は楽天の全倍率を一括取得してから再描画
-  if(mode==='point' && SOURCE==='live' && !RK_POINTS){ ensureRkPoints().then(()=>{ if(document.querySelector('#modeSeg .on').dataset.mode==='point') render(); }); }
+  if((mode==='point'||mode==='all') && SOURCE==='live' && !RK_POINTS){ ensureRkPoints().then(()=>{ const m=document.querySelector('#modeSeg .on').dataset.mode; if(m==='point'||m==='all') render(); }); }
 
   // coord→合算日販（発注表示を帯・メールと同じ「共有在庫は合算需要」で計算するため毎回更新）
   COORD_DAILY={}; DATA.forEach(g=>Object.values(g.cells).forEach(c=>{ const cd=c.coord||''; if(cd) COORD_DAILY[cd]=(COORD_DAILY[cd]||0)+cellDaily(c); }));
@@ -1114,6 +1119,15 @@ function cardHTML(g,mode){
       }
       else if(mode==='price'){ cls='bg-'+bucket(c.combined); main=(p>0?yen(p):'—'); }
       else if(mode==='order'){ if(reorderExcluded(g)){ cls='bg-u'; main='対象外'; } else { const dl=cellDaysLeftC(cgi,c); cls='bg-'+dlBucket(dl,getLeadTime()); main=dlLabel(dl); } }
+      else if(mode==='all'){   // まとめ＝在庫(物理束・色は在庫)＋価格＋楽天ポイント倍率
+        const ci=cutStockInfo(g,L,G);
+        const tot=c.infinite?null:(s+(ci?ci.add:0));
+        cls=c.infinite?'bg-g':'bg-'+stockBucket(tot);
+        main=c.infinite?'∞':((SUB_BUNDLE[L]?physB(tot,L):tot)+'<small style="font-size:9px">束</small>');
+        const rt=c.rakuten?rkPointFor(c):null;
+        cutSub='<span class="apr">'+(p>0?yen(p):'—')+'</span>'
+          +'<span class="apt'+(rt!=null&&rt>1?' on':'')+'">'+(c.rakuten?('⭐'+(rt==null?'…':rt+'倍')):'⭐—')+'</span>';
+      }
       else if(mode==='point'){ if(!c.rakuten){ cls='bg-u'; main='—'; } else { const rt=rkPointFor(c); main=(rt==null?'…':rt+'倍'); cls=(rt!=null&&rt>1)?'bg-g':'bg-u'; } }
       else { cls='bg-'+bucket(c.combined); main=ageShort(c.combined); }
       let tag='';
@@ -1147,6 +1161,7 @@ function setLegend(mode,LT){
   let html;
   if(mode==='order') html=L([['r','〜'+LT+'日(要発注)'],['o','〜'+(LT*2)+'日'],['y','〜'+(LT*4)+'日'],['g','十分/∞'],['u','実績なし']]);
   else if(mode==='stock') html=L([['g','潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']])+'<span>　910＝10枚入束・2m＝8枚入束で表記（EC20枚入はサブ・色はEC束数基準）　🕐＝最終販売・市場出荷からの経過</span>';
+  else if(mode==='all') html=L([['g','在庫 潤沢25〜'],['y','12〜24'],['o','5〜11'],['r','僅少〜4'],['u','0']])+'<span>　1マス＝<b>在庫(束)</b>／価格／⭐楽天ポイント倍率（2倍以上は金色）。910＝10枚入・2m＝8枚入で表記（2mは4m小節の木取り分込み）。詳しく見るときは上のタブへ</span>';
   else if(mode==='point') html=L([['g','変倍あり(2倍〜)'],['u','1倍(変倍なし)']])+'<span>　—＝楽天SKUなし（楽天=表示/編集可・Yahoo=手動）</span>';
   else html=L([['g','〜2か月'],['y','2か月〜'],['o','半年〜'],['r','1年〜'],['u','不明']])+'<span>　色＝🕐売れてない期間 / 数字＝価格</span>';
   document.getElementById('legend').innerHTML=html;
