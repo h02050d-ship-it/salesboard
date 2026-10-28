@@ -450,7 +450,7 @@
   </div>
   <button id="rankBtn" class="tbtn" title="売れ筋・死に筋（滞留在庫）ランキング">📊 ランキング</button>
   <button id="wsBtn" class="tbtn" title="付売・市売（卸）価格表">📋 付売・市売</button>
-  <button id="pchgBtn" class="tbtn" title="値下げ・価格変更した商品の経過日数と、その後の売れ行きを確認">💴 値下げ管理</button>
+  <button id="pchgBtn" class="tbtn" title="価格・ポイント倍率を変えた商品の、変更後の売れ方を確認">💴 値下げ・ポイント効果</button>
   <button id="zkBtn" class="tbtn" title="棚卸2回と月次の売上・仕入から、今日時点の全社在庫額を推定">📦 在庫推定</button>
   <a id="tkBtn" class="tbtn" href="tekisei.html" style="text-decoration:none" title="原板（長さ×等級）ごとの需給から適正在庫とスポット購入目安を算出（別ページで広く表示）">🎯 適正在庫</a>
   <a id="mobileBtn" class="tbtn" href="mobile.html" style="text-decoration:none" title="スマホ用の在庫入力ページ（910=10枚入・2m=8枚入の実物の束数で入力→EC入数へ自動換算）">📱 スマホ入力</a>
@@ -508,10 +508,11 @@
 <div class="rank-modal" id="pchgModal">
   <div class="rank-box">
     <div class="rkh">
-      <h3>💴 値下げ・価格変更 管理</h3>
+      <h3>💴 価格・ポイント変更の効果</h3>
       <div class="rkseg" id="pchgSeg">
         <button data-f="down" class="on">📉 値下げのみ</button>
         <button data-f="all">全変更</button>
+        <button data-f="point">⭐ ポイント</button>
       </div>
       <button class="x" id="pchgX" style="margin-left:auto">✕</button>
     </div>
@@ -1787,15 +1788,16 @@ async function showPchgFull(btn){
     +'<span class="hist-p" style="margin-left:auto;color:var(--sub)">'+x.days+'日前</span></div>').join('');
 }
 // 価格変更の効果測定（GAS pricefx＝変更前後の実売比較）。key→結果
-let PFX=null, PFX_LOADING=null;
+let PFX=null, PFX_LOADING=null, PPX=[];
 async function ensurePriceFx(){
   if(PFX) return PFX;
   if(SOURCE!=='live') return (PFX={});
   if(PFX_LOADING) return PFX_LOADING;
   PFX_LOADING=(async()=>{
     try{ const r=await fetch(GAS_URL+'?api=pricefx&'+authQS()); const j=await r.json();
-      PFX={}; if(j&&j.ok&&Array.isArray(j.items)) j.items.forEach(x=>{PFX[x.key]=x;}); }
-    catch(e){ PFX={}; }
+      PFX={}; if(j&&j.ok&&Array.isArray(j.items)) j.items.forEach(x=>{PFX[x.key]=x;});
+      PPX=(j&&j.ok&&Array.isArray(j.points))?j.points:[]; }
+    catch(e){ PFX={}; PPX=[]; }
     PFX_LOADING=null; return PFX;
   })();
   return PFX_LOADING;
@@ -1814,6 +1816,7 @@ function closePchg(){ document.getElementById('pchgModal').classList.remove('sho
 function renderPchg(){
   const body=document.getElementById('pchgBody'), note=document.getElementById('pchgNote');
   if(SOURCE!=='live'){ body.innerHTML='<div class="rank-empty">ログインして実在庫に接続すると価格変更履歴を表示します。</div>'; note.textContent=''; return; }
+  if(pchgFilter==='point') return renderPointFx(body,note);
   // ボード同梱の最新変更（規格ごと1件）＝経過日数＋その後の売れ行きで一覧
   let rows=scanCells().filter(r=>r.c.pchg&&r.c.pchg.latest).map(r=>({r, p:r.c.pchg.latest}));
   if(pchgFilter==='down') rows=rows.filter(x=>x.p.diff<0);
@@ -1834,9 +1837,9 @@ function renderPchg(){
     else if(fx&&(fx.verdict==='good'||fx.verdict==='bad')){
       head=fxBadge(fx.verdict,fx.days);
       detail='販売 '+fx.qB+'→<b>'+fx.qA+'</b>枚/日 ・ '+(fx.hasCost?'粗利':'売上')+' ¥'+fx.gB.toLocaleString()+'→<b>¥'+fx.gA.toLocaleString()+'</b>/日'
-        +'<br>年換算 <b style="color:'+(fx.annual>=0?'#1a7f37':'var(--r-ink)')+'">'+fxMan(fx.annual)+'円</b> <span style="opacity:.7">(前'+fx.wB+'日/後'+fx.wA+'日)</span>';
+        +'<br>変更後'+fx.wA+'日で <b>'+(fx.qAt||0)+'枚</b>（前'+fx.wB+'日は'+(fx.qBt||0)+'枚） ・ 年換算 <b style="color:'+(fx.annual>=0?'#1a7f37':'var(--r-ink)')+'">'+fxMan(fx.annual)+'円</b>';
     }
-    else if(fx){ head=fxBadge(fx.verdict,fx.days); detail='<span '+soldCls+'>直近30日 '+soldTxt+'</span> ・ '+infoStk; }
+    else if(fx){ head=fxBadge(fx.verdict,fx.days); detail=(fx.wA>0?'変更後'+fx.wA+'日で <b>'+(fx.qAt||0)+'枚</b> ・ ':'')+'<span '+soldCls+'>直近30日 '+soldTxt+'</span> ・ '+infoStk; }
     else { head=''; detail='<span '+soldCls+'>直近30日 '+soldTxt+'</span> ・ '+infoStk; }
     return '<div class="rrow" data-gi="'+r.gi+'" data-k="'+r.key+'">'
       +'<div class="ri" style="flex:1"><div class="t">'+r.name+'　'+r.length+'/'+r.grade+'</div>'
@@ -1845,6 +1848,30 @@ function renderPchg(){
       +'<div class="s">'+detail+'</div></div></div>';
   }).join('');
   body.querySelectorAll('.rrow').forEach(el=>el.onclick=()=>{ closePchg(); openDrawer(+el.dataset.gi,el.dataset.k); });
+}
+// ⭐ ポイント倍率変更の効果（GAS pointFxList_＝モール別に変更前後の売れ方。粗利からポイント原資も差し引き）
+function renderPointFx(body,note){
+  note.innerHTML='ポイント倍率を変えた規格を<b>モール別・変更が新しい順</b>に。変更前（最大60日）と変更後で<b>そのモールの売れ方</b>を比べます。判定は変更から14日後・<b>粗利からポイント原資（通常1倍を超える分）を引いて</b>増えたかどうか。楽天は毎朝7時に実際の倍率を見て自動記録、ヤフーはClaudeに頼んで記録します。行タップで詳細へ。';
+  if(!PFX){ body.innerHTML='<div class="rank-empty"><span class="spin sm"></span> 計算中…</div>'; return; }
+  if(!PPX.length){ body.innerHTML='<div class="rank-empty">ポイント倍率の変更記録はまだありません。</div>'; return; }
+  const cells={}; scanCells().forEach(r=>{ cells[cellPchgKey(r.g,r.c)]=r; });
+  const rows=PPX.slice().sort((a,b)=>a.days-b.days||(a.mall<b.mall?-1:1));
+  body.innerHTML=rows.map(x=>{
+    const r=cells[x.key], name=r?(r.name+'　'+r.length+'/'+r.grade):x.key.replace(/\|/g,' ');
+    const ago=x.days<=0?'今日':(x.days+'日前');
+    const up=x.nw>x.old, col=up?'#b8860b':'var(--muted,#777)';
+    const after=x.wA>0?('変更後'+x.wA+'日で <b>'+x.qAt+'枚</b>（'+x.oA+'件）'):'変更後の売れ方は明日から';
+    const before='前'+x.wB+'日は '+x.qBt+'枚（'+x.oB+'件）';
+    let detail=after+' ・ '+before;
+    if(x.verdict==='good'||x.verdict==='bad') detail+='<br>粗利（ポイント原資込み） ¥'+x.gB.toLocaleString()+'→<b>¥'+x.gA.toLocaleString()+'</b>/日 ・ 年換算 <b style="color:'+(x.annual>=0?'#1a7f37':'var(--r-ink)')+'">'+fxMan(x.annual)+'円</b>';
+    if(x.ptA>0) detail+='<br><span style="opacity:.75">変更後のポイント原資 約¥'+x.ptA.toLocaleString()+'</span>';
+    return '<div class="rrow"'+(r?' data-gi="'+r.gi+'" data-k="'+r.key+'"':'')+'>'
+      +'<div class="ri" style="flex:1"><div class="t">'+name+'</div>'
+      +'<div class="s">'+x.date+' ・ <b>'+x.mall+'</b> ・ ⭐ '+x.old+'倍 → <b style="color:'+col+'">'+x.nw+'倍</b></div></div>'
+      +'<div class="ri" style="text-align:right;min-width:230px"><div class="t"><b>'+ago+'</b>　'+fxBadge(x.verdict,x.days)+'</div>'
+      +'<div class="s">'+detail+'</div></div></div>';
+  }).join('');
+  body.querySelectorAll('.rrow[data-gi]').forEach(el=>el.onclick=()=>{ closePchg(); openDrawer(+el.dataset.gi,el.dataset.k); });
 }
 document.getElementById('pchgBtn').onclick=openPchg;
 document.getElementById('pchgX').onclick=closePchg;
