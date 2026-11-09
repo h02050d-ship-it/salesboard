@@ -851,7 +851,10 @@ function normalizeGroups(groups){
             name:g.name||(g.quality+'級 '+(g.width||'')+' '+g.type), lens, grades, cells:cmap, stockSum:stock, staleN:stale};
   });
 }
-function curStock(gi,c){ const k=ckey(gi,c.length,c.grade); return (edits[k]&&'stock'in edits[k])?edits[k].stock:c.stock; }
+// A級標準(フローリング/羽目板/スノコ)は同じ原板在庫(coord共有)＝どれか1つで在庫を変えたら他の2つも同じ数で表示（価格・ポイントは個別のまま）
+function cellOfKey(k){ const [gip,L,G]=k.split('|'); const g=DATA.find(x=>x.gi===+gip); return g?((g.cells||{})[L+'|'+G]||null):null; }
+function coordStockEditKey(coord){ if(!coord) return null; for(const k in edits){ if(edits[k]&&'stock'in edits[k]){ const c2=cellOfKey(k); if(c2&&c2.coord===coord) return k; } } return null; }
+function curStock(gi,c){ const k=ckey(gi,c.length,c.grade); if(edits[k]&&'stock'in edits[k]) return edits[k].stock; const sk=coordStockEditKey(c.coord); return sk?edits[sk].stock:c.stock; }
 // 木取り上乗せ: 対象セルか判定
 function cutRuleFor(g,L,G){ return CUT_RULES[g.quality+'|'+g.group+'|'+L+'|'+G]||null; }
 // 対象セルの上乗せ内訳を返す。対象外/4m在庫0以下/4m無限在庫 → null（＝従来の実在庫表示）。
@@ -869,7 +872,7 @@ function cutStockInfo(g,L,G){
 function curPriceY(gi,c){ const k=ckey(gi,c.length,c.grade); const e=edits[k]; return (e&&'priceY'in e)?e.priceY:(c.yahoo?(+c.yahoo.price||0):0); }
 function curPriceR(gi,c){ const k=ckey(gi,c.length,c.grade); const e=edits[k]; return (e&&'priceR'in e)?e.priceR:(c.rakuten?(+c.rakuten.price||0):0); }
 function curPriceDisp(gi,c){ return c.yahoo?curPriceY(gi,c):curPriceR(gi,c); }  // 価格モードのグリッド表示（Yahoo優先）
-function isEdited(gi,c){ return !!edits[ckey(gi,c.length,c.grade)]; }
+function isEdited(gi,c){ return !!edits[ckey(gi,c.length,c.grade)] || !!coordStockEditKey(c.coord); }
 
 /* ===== 発注アラート（日販×在庫で「あと○日」を推定） ===== */
 const LEADTIME_KEY='hayazai_leadtime';
@@ -1463,6 +1466,10 @@ function collectCellRec(){
 }
 function stageCell(){   // 保留リストに入れるだけ（同期はしない）
   const k=ckey(cur.gi,cur.c.length,cur.c.grade), r=collectCellRec();
+  // 共有在庫の保留は1件に寄せる（兄弟セルに残っている在庫保留を外す＝同じ原板へ二重送信しない）
+  //  入力欄は兄弟の保留値で初期化される＝欄の値がその原板の意図した在庫。元値と同じなら保留なし（＝戻した）
+  const ok=coordStockEditKey(cur.c.coord);
+  if(ok&&ok!==k&&document.getElementById('stkIn')){ delete edits[ok].stock; if(!Object.keys(edits[ok]).length) delete edits[ok]; }
   if(Object.keys(r.rec).length) edits[k]=r.rec; else delete edits[k];
   drawerDirty=false; hideChgBar();
   closeDrawer(true); render();
